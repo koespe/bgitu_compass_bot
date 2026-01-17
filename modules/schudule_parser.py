@@ -26,38 +26,14 @@ def get_week_range(offset=0):
     return [start_of_week, end_of_week, week_number]
 
 
-async def handle_group_not_found_error(user_id: int, bot=None):
-    """
-    Обрабатывает ошибку 409 - группа не найдена.
-    Удаляет данные пользователя и возвращает сообщение о необходимости выбрать новую группу.
-    """
-    await DB.logout(user_id)
-    
-    message_text = (
-        "❌ <b>Ваша группа не найдена в расписании</b>\n\n"
-        "Возможно, группа была расформирована или изменена.\n"
-        "Пожалуйста, выберите новую группу.\n\n"
-        "Вы были возвращены в главное меню."
-    )
-    
-    if bot:
-        # Если передан бот, отправляем сообщение
-        await bot.send_message(
-            chat_id=user_id,
-            text=message_text
-        )
-    
-    return message_text
-
-
 async def api_get_schedule(group_id: int):
     async with aiohttp.ClientSession() as session:
         req_lessons = await session.get(
             url=config.api_host + 'v2/lessons' + f'?groupId={group_id}')
-        
-        if req_lessons.status == 409:
-            return {"error": "group_not_found", "status": 409}
-        
+
+        if req_lessons.status == 409:  # Группа отсутсвует
+            return {"status": 409}
+
         schedule = await req_lessons.json()
 
         """
@@ -86,16 +62,10 @@ async def form_schedule_message(user_id: int, offset: int = 0,
 
     group_id = user_data.get('group_id') if favorite_group_id is None else favorite_group_id
     schedule = await api_get_schedule(group_id=group_id)
-    
-    # Проверяем на ошибку 409
-    if schedule.get("error") == "group_not_found" and schedule.get("status") == 409:
-        if favorite_group_id is None:
-            # Это основная группа пользователя - удаляем данные и возвращаем специальное сообщение
-            await handle_group_not_found_error(user_id)
-            return "GROUP_NOT_FOUND_ERROR"
-        else:
-            # Это избранная группа - просто возвращаем сообщение об ошибке
-            return f"❌ Группа {favorite_group_name} не найдена в расписании"
+
+    # Проверяем на ошибку 409 (группа не найдена)
+    if schedule.get("status") == 409:
+        return "FAV_GROUP_NOT_FOUND_ERROR" if favorite_group_id else "GROUP_NOT_FOUND_ERROR"
 
     if view == 'weekly':
         cur_week_text = ' текущую' if offset == 0 else ''

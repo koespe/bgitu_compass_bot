@@ -68,16 +68,21 @@ async def handle_schedule(update: Union[Update, CallbackQuery, Message], state: 
         
         # Проверяем на ошибку группы не найдена
         if msg_text == "GROUP_NOT_FOUND_ERROR":
-            # Отправляем пользователя в главное меню для выбора новой группы
+            await DB.logout(user_id)
+            await state.update_data(old_user=None)
+
+            await update.answer(text="Не удалось найти вашу группу. Выберите ее заново.")
+
             from handlers.users.auth import handle_start_command
             await handle_start_command(update, state)
             return
         
         # Проверяем на ошибку с избранной группой
-        if msg_text.startswith("❌ Группа") and "не найдена в расписании" in msg_text:
+        if msg_text == "FAV_GROUP_NOT_FOUND_ERROR":
+            await DB.manage_favorites(action="delete", user_id=user_id, group_id=favorite_group_id)
             # Показываем сообщение об ошибке и возвращаем в меню избранных групп
             if isinstance(update, CallbackQuery):
-                await update.answer(text=msg_text)
+                await update.answer(text="Выбранная группа не была найдена")
             else:
                 await update.bot.send_message(chat_id=user_id, text=msg_text)
             

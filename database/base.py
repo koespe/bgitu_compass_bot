@@ -63,8 +63,11 @@ class DB:
         async with get_session() as session:
             query = select(Users).filter(Users.id == user_id)
             user_data = await session.scalar(query)
-            await session.delete(user_data)
-            await session.commit()
+            try:  # Очень ленивое решение непонятной ошибки алхимии при выборе группы после ошибки 409
+                await session.delete(user_data)
+                await session.commit()
+            except:
+                pass
 
     @staticmethod
     async def change_schedule_view(user_id: int) -> None:
