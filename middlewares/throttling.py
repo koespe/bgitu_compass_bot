@@ -1,0 +1,23 @@
+from typing import Any, Awaitable, Callable, Dict
+
+from aiogram import BaseMiddleware
+from aiogram.types import Message
+
+from cachetools import TTLCache
+
+throttling_cache = TTLCache(maxsize=10_000, ttl=0.5)
+
+
+class ThrottlingMiddleware(BaseMiddleware):
+    cache = throttling_cache
+
+    async def __call__(
+        self,
+        handler: Callable[[Message, Dict[str, Any]], Awaitable[Any]],
+        event: Message,
+        data: Dict[str, Any],
+    ) -> Any:
+        if event.chat.id not in self.cache.keys():
+            self.cache[event.chat.id] = None
+            return await handler(event, data)
+        return
