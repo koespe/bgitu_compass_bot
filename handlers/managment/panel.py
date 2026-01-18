@@ -79,15 +79,11 @@ async def broadcast_ad(message: Message, state: FSMContext):
         from_chat_id = int(from_chat_id_match.group(1))
     else:
         from_chat_id = None
-        print("Не удалось найти from_chat_id")
 
     if message_id_match:
         message_id = int(message_id_match.group(1))
     else:
         message_id = None
-        print("Не удалось найти message_id")
-
-    print(from_chat_id, message_id)
 
     async with get_session() as session:
         query = select(Users.id)
@@ -117,7 +113,6 @@ async def broadcast_waiting_id_list(callback: CallbackQuery, state: FSMContext):
 @admin_panel_router.message(StateFilter(Broadcast.requesting_list_id))
 async def broadcast_fetching_id_list(message: Message, state: FSMContext):
     id_list = list(map(int, message.text.split('\n')))
-    print(id_list)
     await state.update_data(id_list=id_list)
     await message.answer(text='Выбери клавиатуру',
                          reply_markup=KB.broadcast_keyboards())

@@ -92,8 +92,6 @@ async def handle_teacher_schedule(callback: CallbackQuery, state: FSMContext):
         search_req = await web_session.get(url=config.api_host + f'v2/teacherSearch?teacher={teacher}&'
                                                                  f'dateFrom={date_from}&dateTo={date_to}')
         search_resp: list = await search_req.json()
-    print(date_from, date_to)
-    print(search_resp)
     message_text = f'<blockquote>Расписание преподавателя <u>{teacher}</u></blockquote>\n'
     last_weekday = ''
     for work_day in search_resp:

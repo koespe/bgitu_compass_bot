@@ -42,14 +42,12 @@ async def send_support_words(message: Message, state: FSMContext):
 
 @auth_router.message(CommandStart())
 async def handle_start_command(update: Union[Message, CallbackQuery, Update], state: FSMContext):
-    # await state.clear()
+    await state.clear()
 
     if await DB.is_user_authorized(update.from_user.id):
-        await state.clear()
         await handle_schedule(update, state)
     else:
         if isinstance(update, Message):
-            await state.clear()
             photo_msg = await update.answer_photo(
                 photo=graphics_id['start_menu']
             )

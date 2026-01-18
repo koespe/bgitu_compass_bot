@@ -137,7 +137,6 @@ class KB:
             for group_id in user_favorite_groups:
 
                 group_name_req = await web_session.get(url=config.api_host + f'groups?groupId={group_id}')
-                print(await group_name_req.json())
                 group_name_resp: dict = await group_name_req.json()
                 if group_name_req.status == 200:  # Обработка удаленной группы
                     group_name = group_name_resp[0].get('name')
