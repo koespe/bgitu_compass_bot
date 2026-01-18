@@ -21,36 +21,29 @@ class TeacherViewer(StatesGroup):
 
 
 @teachers_router.callback_query(F.data == 'teachers')
-async def unavailable_button(callback: CallbackQuery, state: FSMContext):
-    await callback.answer(text='Функция недоступна: пока что нет расписания для ВСЕХ групп',
-                          show_alert=True)
+async def handle_teachers_button(callback: CallbackQuery, state: FSMContext):
+    await state.set_state(TeacherViewer.requesting_surname)
+    fsm_data = await state.get_data()
 
+    msg_text = ('Узнайте в какие дни и где можно найти преподавателя\n\n'
+                '<i>\u26a0\ufe0f Это <u>не расписание пересдач</u> и отработок — такую информацию уточняйте лично или на стендах кафедры</i>\n\n'
+                '\U0001f447 Введите <u>фамилию</u> преподавателя')
 
-# @teachers_router.callback_query(F.data == 'teachers')
-# async def handle_teachers_button(callback: CallbackQuery, state: FSMContext):
-#     await state.set_state(TeacherViewer.requesting_surname)
-#     fsm_data = await state.get_data()
-#
-#     msg_text = ('Узнайте в какие дни и где можно найти преподавателя\n\n'
-#                 '<i>\u26a0\ufe0f Это <u>не расписание пересдач</u> и отработок — такую информацию уточняйте лично или на стендах кафедры</i>\n\n'
-#                 '\U0001f447 Введите <u>фамилию</u> преподавателя')
-#
-#     # Картинку обновляем
-#     graphics = InputMediaPhoto(media=graphics_id['teachers_search'])
-#     try:
-#         await callback.bot.edit_message_media(
-#             chat_id=callback.from_user.id,
-#             message_id=fsm_data.get('photo_msg_id'),
-#             media=graphics
-#         )
-#     except TelegramBadRequest:
-#         pass
-#
-#     bot_msg = await callback.message.edit_text(
-#         text=msg_text,
-#         reply_markup=KB.back_to_schedule()
-#     )
-#     await state.update_data(bot_msg_id=bot_msg.message_id)
+    graphics = InputMediaPhoto(media=graphics_id['teachers_search'])
+    try:
+        await callback.bot.edit_message_media(
+            chat_id=callback.from_user.id,
+            message_id=fsm_data.get('photo_msg_id'),
+            media=graphics
+        )
+    except TelegramBadRequest:
+        pass
+
+    bot_msg = await callback.message.edit_text(
+        text=msg_text,
+        reply_markup=KB.back_to_schedule()
+    )
+    await state.update_data(bot_msg_id=bot_msg.message_id)
 
 
 @teachers_router.message(StateFilter(TeacherViewer.requesting_surname))
