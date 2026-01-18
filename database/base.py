@@ -57,9 +57,6 @@ class DB:
 
     @staticmethod
     async def logout(user_id: int):
-        """
-        Удаляем данные из Users и Notifications
-        """
         async with get_session() as session:
             query = select(Users).filter(Users.id == user_id)
             user_data = await session.scalar(query)

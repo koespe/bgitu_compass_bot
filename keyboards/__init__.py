@@ -77,16 +77,6 @@ class KB:
         return kb.as_markup()
 
     @staticmethod
-    async def notifications_settings(user_id: int):
-        kb = InlineKeyboardBuilder()
-        kb.row(InlineKeyboardButton(text='\u2705 Между парами', callback_data='no_action'))
-        kb.row(InlineKeyboardButton(text='\u274c Перед парами (на весь день)', callback_data='no_action'))
-        kb.row(InlineKeyboardButton(text='\u2705 После пар (на весь день)', callback_data='no_action'))
-        kb.row(InlineKeyboardButton(text='\u274c В конце недели (на всю неделю)', callback_data='no_action'))
-        kb.row(InlineKeyboardButton(text='\u2b05\ufe0f Вернуться назад', callback_data='no_action'))
-        return kb.as_markup()
-
-    @staticmethod
     def teachers_search_results(teachers: list):
         kb = InlineKeyboardBuilder()
         for teacher in teachers:
