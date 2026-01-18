@@ -1,15 +1,14 @@
 import asyncio
-from pprint import pprint
+import re
 from typing import Union
 
 import aiohttp
-from aiogram import Router, F, Bot
+from aiogram import Router, F
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
-from aiogram.types import Message, InlineKeyboardButton, CallbackQuery, Update, InputMediaPhoto
+from aiogram.types import Message, CallbackQuery, Update, InputMediaPhoto
 from aiogram.filters import CommandStart, StateFilter
-from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from config_reader import config, graphics_id
 from database.base import DB
@@ -27,9 +26,9 @@ class SupportWordsState(StatesGroup):
 
 @auth_router.message(CommandStart(deep_link=True, magic=F.args == "support_words"))
 async def handle_support_words(message: Message, state: FSMContext):
-    TEXT = ('\U0001f917 Вы можете поддержать разработчиков теплыми словами, нам будет очень приятно!\n'
+    msg_text = ('\U0001f917 Вы можете поддержать разработчиков теплыми словами, нам будет очень приятно!\n'
             'Напишите одно сообщение')
-    await message.answer(TEXT)
+    await message.answer(msg_text)
     await state.set_state(SupportWordsState.waiting_for_msg)
 
 
@@ -79,7 +78,7 @@ async def handle_start_command(update: Union[Message, CallbackQuery, Update], st
 @auth_router.callback_query(F.data == 'about')
 async def about_project(callback: CallbackQuery):
     about_text = (
-        'Этот <b>неофициальный</b> бот использует файлы расписания с сайта bgitu.ru — предостовляется расписание для групп <b><u>БАК, СПО и МАГ</u></b>\n'
+        'Этот <b>неофициальный</b> бот использует файлы расписания с сайта bgitu.ru — предоставляется расписание для групп <b><u>БАК, СПО и МАГ</u></b>\n'
         '\U0001f4f1 Также есть <b>приложение для Android</b> → bgitu-compass.ru\n\n'
         '\U0001f464 <b>Разработчик:</b> студент ПрИ-301 — <b>Пудов Кирилл (@koespe)</b>\n'
         '\U0001f464 <b>Разработчик приложения:</b> студент ПрИ-301 — <b>Елисей Веревкин (@Injent)</b>\n')
@@ -104,7 +103,7 @@ async def request_group_name(callback: CallbackQuery, state: FSMContext):
     except TelegramBadRequest:
         pass
     bot_msg = await callback.message.edit_text(
-        text='\U0001f447 Введите грппу (можно неполностью)\n'
+        text='\U0001f447 Введите группу (можно неполностью)\n'
              'Пример: «ИСТ», «АД СПО» или «ЭКОНм»',
         reply_markup=KB.cancel_group_search()
     )
@@ -152,7 +151,6 @@ async def bind_group_to_user(callback: CallbackQuery, state: FSMContext):
 
     if fsm_data.get('favorites_request') is not None:
         # Добавляем в бд в избранные
-        # await callback.message.delete()
         await DB.manage_favorites(action='add', user_id=callback.from_user.id, group_id=group_id)
         await state.set_state(state=None)
         await state.update_data(favorites_request=None)
@@ -161,7 +159,7 @@ async def bind_group_to_user(callback: CallbackQuery, state: FSMContext):
         if fsm_data.get('old_user'):
             await DB.logout(callback.from_user.id)
         await DB.add_user(user_id=callback.from_user.id, group_name=group_name, group_id=group_id)
-        if 'маг' in group_name:
+        if re.search(r'[А-Яа-я]м', group_name):  # Обработка если это магистратура
             await DB.change_schedule_view(user_id=callback.from_user.id)
         await callback.bot.delete_message(
             chat_id=callback.from_user.id,
