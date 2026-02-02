@@ -2,7 +2,7 @@ import asyncio
 import re
 from functools import wraps
 
-from aiogram import Router, F, exceptions
+from aiogram import Router, F
 from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
@@ -12,7 +12,6 @@ from sqlalchemy import select, func
 from config_reader import config
 from database.base import get_session
 from database.models import Users
-from handlers.users.main_menu import handle_schedule
 from keyboards import KB
 
 admin_panel_router = Router()
@@ -38,7 +37,7 @@ class AdMessage(StatesGroup):
 
 
 @admin_panel_router.message(IsAdmin(), F.text == '/admin')
-async def admin_panel(message: Message, state: FSMContext):
+async def admin_panel(message: Message):
     async with get_session() as session:
         query = select(func.count(Users.id))
         users_count = (await session.execute(query)).scalar()
@@ -56,57 +55,15 @@ async def admin_panel(message: Message, state: FSMContext):
 
 
 @admin_panel_router.callback_query(F.data == 'broadcast')
-async def broadcast_select_type(callback: CallbackQuery, state: FSMContext):
-    # Рассылка для всех или по id через строчку
+async def broadcast_select_type(callback: CallbackQuery):
     await callback.message.answer(text='Выбери тип рассылки',
                                   reply_markup=KB.broadcast_types())
 
 
-@admin_panel_router.callback_query(F.data == 'broadcast_type=ad')
-async def ad_waiting_data(callback: CallbackQuery, state: FSMContext):
-    await state.set_state(Broadcast.requesting_ad_data)
-    await callback.message.answer(text='Ожидаю сообщение от бота вида\n'
-                                       'from_chat_id={message.chat.id}, message_id={message.message_id}')
-
-
-@admin_panel_router.message(StateFilter(Broadcast.requesting_ad_data))
-async def broadcast_ad(message: Message, state: FSMContext):
-    input_string = message.text
-    from_chat_id_match = re.search(r"from_chat_id=(-?\d+)", input_string)
-    message_id_match = re.search(r"message_id=(\d+)", input_string)
-
-    if from_chat_id_match:
-        from_chat_id = int(from_chat_id_match.group(1))
-    else:
-        from_chat_id = None
-
-    if message_id_match:
-        message_id = int(message_id_match.group(1))
-    else:
-        message_id = None
-
-    async with get_session() as session:
-        query = select(Users.id)
-        users = (await session.execute(query)).fetchall()
-        user_list = list(user[0] for user in users)
-
-    for user in user_list:
-        try:
-            await message.bot.forward_message(chat_id=user, from_chat_id=from_chat_id, message_id=message_id,
-                                              disable_notification=True)
-        except:
-            continue
-        await asyncio.sleep(.2)
-
-    await state.clear()
-    await message.answer(text='Рассылка закончена.')
-
-
 @admin_panel_router.callback_query(F.data == 'broadcast_type=id_list')
 async def broadcast_waiting_id_list(callback: CallbackQuery, state: FSMContext):
-    # получение списка id
     await state.update_data(broadcast_type='id_list')
-    await callback.message.answer(text='Ожидаю список id где каждый с новой строки')
+    await callback.message.answer(text='Ожидаю список где каждый id с новой строки')
     await state.set_state(Broadcast.requesting_list_id)
 
 
@@ -119,7 +76,7 @@ async def broadcast_fetching_id_list(message: Message, state: FSMContext):
 
 
 @admin_panel_router.callback_query(F.data == 'broadcast_type=all')
-async def broadcast_select_keyboard(callback: CallbackQuery, state: FSMContext):
+async def broadcast_select_keyboard(callback: CallbackQuery):
     await callback.message.answer(text='Выбери клавиатуру',
                                   reply_markup=KB.broadcast_keyboards())
 
@@ -136,12 +93,12 @@ async def broadcast_request(callback: CallbackQuery, state: FSMContext):
 
 @admin_panel_router.message(StateFilter(Broadcast.requesting_message))
 async def handle_start_broadcast(message: Message, state: FSMContext):
+    broadcast_text = message.text
+
     fsm_data = await state.get_data()
     is_restart_kb = True if fsm_data.get('restart_kb') else False
     id_list = fsm_data.get('id_list')
 
-    broadcast_text = message.text
-    # выбираем пользователей
     async with get_session() as session:
         query = select(Users.id)
         users = (await session.execute(query)).fetchall()
@@ -170,13 +127,6 @@ async def handle_cancel_broadcast(callback: CallbackQuery, state: FSMContext):
     await callback.message.answer(text='Отменено.')
 
 
-@admin_panel_router.callback_query(F.data == 'restart_to_schedule')
-async def handle_restart(callback: CallbackQuery, state: FSMContext):
-    await state.update_data(refresh=True)
-    # await callback.message.delete()
-    await handle_schedule(callback, state)
-
-
 @admin_panel_router.message(F.text == '/ad')
 async def get_message_id(message: Message, state: FSMContext):
     await state.set_state(AdMessage.requesting_message)
@@ -189,7 +139,51 @@ async def handle_send_ad_message(message: Message, state: FSMContext):
     # Получаем сообщение и сохраняем его id для последующей рассылки
     await message.answer(f'from_chat_id={message.chat.id}, message_id={message.message_id}')
     await message.answer('Перешлите сообщение выше администратору')
-    # await state.clear()
+    await state.clear()
+
+
+@admin_panel_router.callback_query(F.data == 'broadcast_type=ad')
+async def ad_waiting_data(callback: CallbackQuery, state: FSMContext):
+    await state.set_state(Broadcast.requesting_ad_data)
+    await callback.message.answer(text='Ожидаю сообщение от бота вида\n'
+                                       'from_chat_id={message.chat.id}, message_id={message.message_id}')
+
+
+@admin_panel_router.message(StateFilter(Broadcast.requesting_ad_data))
+async def broadcast_ad(message: Message, state: FSMContext):
+    input_string = message.text
+    from_chat_id_match = re.search(r"from_chat_id=(-?\d+)", input_string)
+    message_id_match = re.search(r"message_id=(\d+)", input_string)
+
+    from_chat_id = None
+    message_id = None
+
+    if from_chat_id_match:
+        from_chat_id = int(from_chat_id_match.group(1))
+
+    if message_id_match:
+        message_id = int(message_id_match.group(1))
+
+    if not from_chat_id or not message_id:
+        await state.clear()
+        await message.answer(text='Не удалось найти необходимые аргументы (from_chat_id и message_id).')
+        return
+
+    async with get_session() as session:
+        query = select(Users.id)
+        users = (await session.execute(query)).fetchall()
+        user_list = list(user[0] for user in users)
+
+    for user in user_list:
+        try:
+            await message.bot.forward_message(chat_id=user, from_chat_id=from_chat_id, message_id=message_id,
+                                              disable_notification=True)
+        except:
+            continue
+        await asyncio.sleep(.2)
+
+    await state.clear()
+    await message.answer(text='Рассылка закончена.')
 
 
 @admin_panel_router.message(IsAdmin(), F.photo)

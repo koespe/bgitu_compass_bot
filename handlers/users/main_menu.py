@@ -188,3 +188,12 @@ async def handle_change_schedule_view(update: Update, state: FSMContext):
     await DB.change_schedule_view(user_id)
     await state.update_data(offset=0)
     await handle_schedule(update, state)
+
+
+@main_menu_router.callback_query(F.data == 'restart_to_schedule')
+async def handle_restart(callback: CallbackQuery, state: FSMContext):
+    """
+
+    """
+    await state.update_data(refresh=True)
+    await handle_schedule(callback, state)

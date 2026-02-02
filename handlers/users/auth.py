@@ -26,7 +26,7 @@ class SupportWordsState(StatesGroup):
 
 @auth_router.message(CommandStart(deep_link=True, magic=F.args == "support_words"))
 async def handle_support_words(message: Message, state: FSMContext):
-    msg_text = ('\U0001f917 Вы можете поддержать разработчиков теплыми словами, нам будет очень приятно!\n'
+    msg_text = ('\U0001f917 Вы можете поддержать разработчиков теплыми словами, им будет очень приятно!\n'
             'Напишите одно сообщение')
     await message.answer(msg_text)
     await state.set_state(SupportWordsState.waiting_for_msg)
@@ -34,7 +34,6 @@ async def handle_support_words(message: Message, state: FSMContext):
 
 @auth_router.message(StateFilter(SupportWordsState.waiting_for_msg))
 async def send_support_words(message: Message, state: FSMContext):
-    # Переслать сообщение со всеми вложениями
     await message.answer('Спасибо за поддержку!')
     await message.forward(chat_id=198685526)
     await state.set_state(state=None)
@@ -46,37 +45,34 @@ async def handle_start_command(update: Union[Message, CallbackQuery, Update], st
 
     if await DB.is_user_authorized(update.from_user.id):
         await handle_schedule(update, state)
+        return
+
+    welcome_text = ('Этот бот поможет узнать <b>расписание групп бакалавриата, СПО и магистратуры</b>\n\n'
+                   '\u26a1 Удобное <b>приложение для Android</b> → bgitu-compass.ru')
+    
+    # Обработка нужна потому что функция может быть вызвана если не нашлась группа (GROUP_NOT_FOUND_ERROR)
+    if isinstance(update, Message):
+        photo_msg = await update.answer_photo(photo=graphics_id['start_menu'])
+        await state.update_data(photo_msg_id=photo_msg.message_id)
+        await update.answer(text=welcome_text, reply_markup=KB.start_menu())
     else:
-        if isinstance(update, Message):
-            photo_msg = await update.answer_photo(
-                photo=graphics_id['start_menu']
+        fsm_data = await state.get_data()
+        try:
+            await update.bot.edit_message_media(
+                chat_id=update.from_user.id,
+                message_id=fsm_data.get('photo_msg_id'),
+                media=InputMediaPhoto(media=graphics_id['start_menu'])
             )
-            await state.update_data(photo_msg_id=photo_msg.message_id)
-            await update.answer(
-                text='Этот бот поможет узнать <b>расписание групп бакалавриата, СПО и магистратуры</b>\n\n'
-                     '\u26a1 Удобное <b>приложение для Android</b> → bgitu-compass.ru',
-                reply_markup=KB.start_menu()
-            )
-        else:
-            fsm_data = await state.get_data()
-            try:
-                await update.bot.edit_message_media(
-                    chat_id=update.from_user.id,
-                    message_id=fsm_data.get('photo_msg_id'),
-                    media=InputMediaPhoto(media=graphics_id['start_menu'])
-                )
-            except TelegramBadRequest:
-                pass
-            await update.message.edit_text(
-                text='Этот бот поможет узнать <b>расписание групп бакалавриата, СПО и магистратуры</b>\n\n'
-                     '\u26a1 Удобное <b>приложение для Android</b> → bgitu-compass.ru',
-                reply_markup=KB.start_menu())
+        except TelegramBadRequest:
+            pass
+        await update.message.edit_text(text=welcome_text, reply_markup=KB.start_menu())
 
 
 @auth_router.callback_query(F.data == 'about')
 async def about_project(callback: CallbackQuery):
     about_text = (
-        'Этот <b>неофициальный</b> бот использует файлы расписания с сайта bgitu.ru — предоставляется расписание для групп <b><u>БАК, СПО и МАГ</u></b>\n'
+        'Этот <b>неофициальный</b> бот использует файлы расписания с сайта bgitu.ru — предоставляется расписание для '
+        'групп <b><u>БАК, СПО и МАГ</u></b>\n'
         '\U0001f4f1 Также есть <b>приложение для Android</b> → bgitu-compass.ru\n\n'
         '\U0001f464 <b>Разработчик:</b> студент ПрИ-301 — <b>Пудов Кирилл (@koespe)</b>\n'
         '\U0001f464 <b>Разработчик приложения:</b> студент ПрИ-301 — <b>Елисей Веревкин (@Injent)</b>\n')
@@ -88,9 +84,7 @@ async def about_project(callback: CallbackQuery):
 async def request_group_name(callback: CallbackQuery, state: FSMContext):
     fsm_data = await state.get_data()
     if fsm_data.get('offset') is not None:
-        await state.update_data(old_user=True)  # флаг, чтобы не присылать уведомление "новый пользователь"
-        # if fsm_data.get('favorites_request') is None:
-        #     await DB.logout(callback.from_user.id)
+        await state.update_data(old_user=True)  # Флаг, чтобы далее не отправлять инструкцию по боту
     await state.set_state(AuthState.requesting_group_name)
     try:
         await callback.bot.edit_message_media(
