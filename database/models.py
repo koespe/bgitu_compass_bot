@@ -17,7 +17,9 @@ class Users(Base):
     __tablename__ = 'users'
 
     id = Column(BigInteger, primary_key=True, index=True)
-    group_name = Column(String)
-    group_id = Column(Integer)
+    group_name = Column(String, nullable=True)
+    group_id = Column(Integer, nullable=True)
     last_schedule_view = Column(String, default='weekly')
+    teacher_name = Column(String, nullable=True)
     favorite_groups = Column(MutableList.as_mutable(ARRAY(Integer)), default=[])
+    favorite_teachers = Column(MutableList.as_mutable(ARRAY(String)), default=[])

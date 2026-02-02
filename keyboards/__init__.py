@@ -10,7 +10,8 @@ class KB:
     @staticmethod
     def start_menu(is_about=False):
         kb = InlineKeyboardBuilder()
-        kb.row(InlineKeyboardButton(text='\u27a1\ufe0f Выбрать группу', callback_data='choose_group'))
+        kb.row(InlineKeyboardButton(text='\U0001f393 Я студент', callback_data='choose_group'))
+        kb.row(InlineKeyboardButton(text='\U0001f464 Я преподаватель', callback_data='choose_teacher'))
         if not is_about:
             kb.row(InlineKeyboardButton(text='\u2139\ufe0f О проекте', callback_data='about'))
         return kb.as_markup()
@@ -28,8 +29,6 @@ class KB:
             group_id = group.get('id')
             group_name = group.get('name')
             kb.add(InlineKeyboardButton(text=group_name, callback_data=f'select_group_{group_id}_{group_name}'))
-
-        kb.add(InlineKeyboardButton(text='\U0001f928 Отсутствует группа?', callback_data='no_mine_group'))
         return kb.adjust(1).as_markup()
 
     @staticmethod
@@ -71,7 +70,8 @@ class KB:
     @staticmethod
     def settings():
         kb = InlineKeyboardBuilder()
-        kb.row(InlineKeyboardButton(text='\U0001f928 Изменить основную группу', callback_data='choose_group'))
+        kb.row(InlineKeyboardButton(text='Изменить основную группу', callback_data='choose_group'))
+        kb.row(InlineKeyboardButton(text='Включить интерфейс преподавателя', callback_data='choose_teacher'))
         kb.row(InlineKeyboardButton(text='\u26d1\ufe0f Поддержка бота', url='https://t.me/koespe'))
         kb.row(InlineKeyboardButton(text='\u21aa\ufe0f Вернуться назад', callback_data='back_to_schedule'))
         return kb.as_markup()
@@ -82,6 +82,14 @@ class KB:
         for teacher in teachers:
             kb.row(InlineKeyboardButton(text=teacher, callback_data=f'select_teacher={teacher}'))
         kb.row(InlineKeyboardButton(text='\u21aa\ufe0f Вернуться назад', callback_data='back_to_schedule'))
+        return kb.adjust(1).as_markup()
+
+    @staticmethod
+    def teacher_search_results(teachers: list):
+        kb = InlineKeyboardBuilder()
+        for teacher in teachers:
+            kb.row(InlineKeyboardButton(text=teacher, callback_data=f'select_teacher_main={teacher}'))
+        kb.row(InlineKeyboardButton(text='\u21aa\ufe0f Вернуться назад', callback_data='cancel_group_search'))
         return kb.adjust(1).as_markup()
 
     @staticmethod
