@@ -1,11 +1,11 @@
 import asyncio
 import re
+from contextlib import suppress
 from functools import wraps
 
 from aiogram import Router, F
 from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import Message, CallbackQuery
 from sqlalchemy import select, func
 
@@ -13,6 +13,7 @@ from config_reader import config
 from database.base import get_session
 from database.models import Users
 from keyboards import KB
+from states import Broadcast, AdMessage
 
 admin_panel_router = Router()
 
@@ -22,18 +23,18 @@ def IsAdmin():
         @wraps(func)
         async def wrapper(message: Message):
             return message.from_user.id == config.admin_tg_id
+
         return wrapper
+
     return decorator
 
 
-class Broadcast(StatesGroup):
-    requesting_message = State()
-    requesting_list_id = State()
-    requesting_ad_data = State()
-
-
-class AdMessage(StatesGroup):
-    requesting_message = State()
+@admin_panel_router.message(IsAdmin(), F.photo)
+async def send_photo_data(message: Message):
+    """
+    Сохранение id фото для использования в graphics
+    """
+    await message.reply(message.photo[-1].file_id)
 
 
 @admin_panel_router.message(IsAdmin(), F.text == '/admin')
@@ -41,8 +42,7 @@ async def admin_panel(message: Message):
     async with get_session() as session:
         query = select(func.count(Users.id))
         users_count = (await session.execute(query)).scalar()
-        stats_message = ('Статистика:\n'
-                         f'Всего: {users_count} пользователей\n')
+        stats_message = 'Статистика:\n' f'Всего: {users_count} пользователей\n'
 
         query = select(Users.group_name, func.count(Users.group_name)).group_by(Users.group_name)
         result = (await session.execute(query)).all()
@@ -50,14 +50,12 @@ async def admin_panel(message: Message):
             stats_message += f'{group_name}: {count}\n'
 
     if config.admin_tg_id == message.from_user.id:
-        await message.answer(text=stats_message,
-                             reply_markup=KB.admin_panel())
+        await message.answer(text=stats_message, reply_markup=KB.admin_panel())
 
 
 @admin_panel_router.callback_query(F.data == 'broadcast')
 async def broadcast_select_type(callback: CallbackQuery):
-    await callback.message.answer(text='Выбери тип рассылки',
-                                  reply_markup=KB.broadcast_types())
+    await callback.message.answer(text='Выбери тип рассылки', reply_markup=KB.broadcast_types())
 
 
 @admin_panel_router.callback_query(F.data == 'broadcast_type=id_list')
@@ -71,14 +69,12 @@ async def broadcast_waiting_id_list(callback: CallbackQuery, state: FSMContext):
 async def broadcast_fetching_id_list(message: Message, state: FSMContext):
     id_list = list(map(int, message.text.split('\n')))
     await state.update_data(id_list=id_list)
-    await message.answer(text='Выбери клавиатуру',
-                         reply_markup=KB.broadcast_keyboards())
+    await message.answer(text='Выбери клавиатуру', reply_markup=KB.broadcast_keyboards())
 
 
 @admin_panel_router.callback_query(F.data == 'broadcast_type=all')
 async def broadcast_select_keyboard(callback: CallbackQuery):
-    await callback.message.answer(text='Выбери клавиатуру',
-                                  reply_markup=KB.broadcast_keyboards())
+    await callback.message.answer(text='Выбери клавиатуру', reply_markup=KB.broadcast_keyboards())
 
 
 @admin_panel_router.callback_query(F.data.startswith('broadcast_kb_'))
@@ -87,8 +83,7 @@ async def broadcast_request(callback: CallbackQuery, state: FSMContext):
         await state.update_data(restart_kb=True)
 
     await state.set_state(Broadcast.requesting_message)
-    await callback.message.answer(text='Введи текст рассылки',
-                                  reply_markup=KB.cancel_broadcast())
+    await callback.message.answer(text='Введи текст рассылки', reply_markup=KB.cancel_broadcast())
 
 
 @admin_panel_router.message(StateFilter(Broadcast.requesting_message))
@@ -103,19 +98,14 @@ async def handle_start_broadcast(message: Message, state: FSMContext):
         query = select(Users.id)
         users = (await session.execute(query)).fetchall()
         user_list = list(user[0] for user in users)
-
     iteration_list = id_list if id_list is not None else user_list
 
+    kwargs = {"reply_markup": KB.restart_to_schedule(), "disable_notification": True} if is_restart_kb else {}
+
     for user in iteration_list:
-        try:
-            if is_restart_kb:
-                await message.bot.send_message(user, broadcast_text,
-                                               reply_markup=KB.restart_to_schedule(), parse_mode='html')
-            else:
-                await message.bot.send_message(user, broadcast_text, parse_mode='html')
-        except:
-            continue
-        await asyncio.sleep(.2)
+        with suppress(Exception):
+            await message.bot.send_message(user, broadcast_text, parse_mode='html', **kwargs)
+        await asyncio.sleep(0.2)
 
     await state.clear()
     await message.answer(text='Рассылка закончена.')
@@ -129,14 +119,15 @@ async def handle_cancel_broadcast(callback: CallbackQuery, state: FSMContext):
 
 @admin_panel_router.message(F.text == '/ad')
 async def get_message_id(message: Message, state: FSMContext):
+    """
+    Запрос сообщения для рекламной рассылки с возможностью использования Premium-эмодзи
+    """
     await state.set_state(AdMessage.requesting_message)
     await message.answer(text='Пришлите любое сообщение')
 
 
-@admin_panel_router.message(F.forward_origin)
 @admin_panel_router.message(StateFilter(AdMessage.requesting_message))
 async def handle_send_ad_message(message: Message, state: FSMContext):
-    # Получаем сообщение и сохраняем его id для последующей рассылки
     await message.answer(f'from_chat_id={message.chat.id}, message_id={message.message_id}')
     await message.answer('Перешлите сообщение выше администратору')
     await state.clear()
@@ -145,8 +136,9 @@ async def handle_send_ad_message(message: Message, state: FSMContext):
 @admin_panel_router.callback_query(F.data == 'broadcast_type=ad')
 async def ad_waiting_data(callback: CallbackQuery, state: FSMContext):
     await state.set_state(Broadcast.requesting_ad_data)
-    await callback.message.answer(text='Ожидаю сообщение от бота вида\n'
-                                       'from_chat_id={message.chat.id}, message_id={message.message_id}')
+    await callback.message.answer(
+        text='Ожидаю сообщение от бота вида\n from_chat_id={message.chat.id}, message_id={message.message_id}'
+    )
 
 
 @admin_panel_router.message(StateFilter(Broadcast.requesting_ad_data))
@@ -176,16 +168,12 @@ async def broadcast_ad(message: Message, state: FSMContext):
 
     for user in user_list:
         try:
-            await message.bot.forward_message(chat_id=user, from_chat_id=from_chat_id, message_id=message_id,
-                                              disable_notification=True)
+            await message.bot.forward_message(
+                chat_id=user, from_chat_id=from_chat_id, message_id=message_id, disable_notification=True
+            )
         except:
             continue
-        await asyncio.sleep(.2)
+        await asyncio.sleep(0.2)
 
     await state.clear()
     await message.answer(text='Рассылка закончена.')
-
-
-@admin_panel_router.message(IsAdmin(), F.photo)
-async def send_photo_data(message: Message):
-    await message.reply(message.photo[-1].file_id)
