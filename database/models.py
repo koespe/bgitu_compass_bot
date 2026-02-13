@@ -22,4 +22,3 @@ class Users(Base):
     last_schedule_view = Column(String, default='weekly')
     teacher_name = Column(String, nullable=True)
     favorite_groups = Column(MutableList.as_mutable(ARRAY(Integer)), default=[])
-    favorite_teachers = Column(MutableList.as_mutable(ARRAY(String)), default=[])

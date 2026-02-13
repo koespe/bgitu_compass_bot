@@ -59,7 +59,8 @@ class DB:
             query = await session.execute(select(Users.group_id,
                                                  Users.group_name,
                                                  Users.last_schedule_view,
-                                                 Users.favorite_groups
+                                                 Users.favorite_groups,
+                                                 Users.teacher_name
                                                  ).filter(Users.id == user_id))
             user_data = dict(query.one()._mapping)
             return user_data
