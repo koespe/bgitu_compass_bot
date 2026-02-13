@@ -46,7 +46,7 @@ async def admin_panel(message: Message):
 
         query = select(Users.group_name, func.count(Users.group_name)).group_by(Users.group_name)
         result = (await session.execute(query)).all()
-        for group_name, count in sorted(result, key=lambda x: x[1], reverse=True):
+        for group_name, count in sorted(result, key=lambda x: x[1], reverse=True)[:15]:
             stats_message += f'{group_name}: {count}\n'
 
     if config.admin_tg_id == message.from_user.id:
