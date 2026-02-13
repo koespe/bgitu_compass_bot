@@ -1,12 +1,8 @@
-import datetime
-
 import aiohttp
-from aiogram import Router, F, Bot
+from aiogram import Router, F
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import StatesGroup, State
-from aiogram.types import Message, CallbackQuery, Update, InputMediaPhoto
-from aiogram.filters import StateFilter
+from aiogram.types import CallbackQuery, InputMediaPhoto
 
 import states
 from config_reader import graphics_id, config

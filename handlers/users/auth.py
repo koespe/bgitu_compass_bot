@@ -1,15 +1,13 @@
 import asyncio
-import re
 from contextlib import suppress
 from typing import Union
 
 import aiohttp
 from aiogram import Router, F
 from aiogram.exceptions import TelegramBadRequest
-from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import StatesGroup, State
-from aiogram.types import Message, CallbackQuery, Update, InputMediaPhoto
 from aiogram.filters import CommandStart, StateFilter
+from aiogram.fsm.context import FSMContext
+from aiogram.types import Message, CallbackQuery, Update, InputMediaPhoto
 
 from config_reader import config, graphics_id
 from database.base import DB
@@ -129,7 +127,6 @@ async def handle_search_results(message: Message, state: FSMContext):
     else:  # Успешный поиск
         success_text = 'Выберите группу \U0001f447 ' if is_group else 'Выберите преподавателя \U0001f447 '
         kb = KB.groups_search_results(search_resp) if is_group else KB.teacher_search_results(search_resp)
-
         await message.bot.edit_message_text(
             chat_id=message.from_user.id,
             message_id=bot_msg_id,
