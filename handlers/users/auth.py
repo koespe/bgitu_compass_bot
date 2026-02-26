@@ -8,6 +8,7 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import CommandStart, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, CallbackQuery, Update, InputMediaPhoto
+from aiogram.utils.markdown import hlink
 
 from config_reader import config, graphics_id
 from database.base import DB
@@ -27,8 +28,10 @@ async def handle_start_command(update: Union[Message, CallbackQuery, Update], st
         await handle_schedule(update, state)
         return
 
-    welcome_text = ('Этот бот поможет узнать <b>расписание групп бакалавриата, СПО и магистратуры</b>\n\n'
-                    '\u26a1 Удобное <b>приложение для Android</b> → bgitu-compass.ru')
+    welcome_text = (
+        'Этот бот поможет узнать <b>расписание групп бакалавриата, СПО и магистратуры</b>\n\n'
+        '\u26a1 Удобное <b>приложение для Android</b> → bgitu-compass.ru'
+    )
 
     # Обработка нужна потому что функция может быть вызвана если не нашлась группа (GROUP_NOT_FOUND_ERROR)
     if isinstance(update, Message):
@@ -41,7 +44,7 @@ async def handle_start_command(update: Union[Message, CallbackQuery, Update], st
             await update.bot.edit_message_media(
                 chat_id=update.from_user.id,
                 message_id=fsm_data.get('photo_msg_id'),
-                media=InputMediaPhoto(media=graphics_id['start_menu'])
+                media=InputMediaPhoto(media=graphics_id['start_menu']),
             )
         except TelegramBadRequest:
             pass
@@ -55,9 +58,9 @@ async def about_project(callback: CallbackQuery):
         'групп <b><u>БАК, СПО и МАГ</u></b>\n'
         '\U0001f4f1 Также есть <b>приложение для Android</b> → bgitu-compass.ru\n\n'
         '\U0001f464 <b>Разработчик:</b> студент ПрИ-301 — <b>Пудов Кирилл (@koespe)</b>\n'
-        '\U0001f464 <b>Разработчик приложения:</b> студент ПрИ-301 — <b>Елисей Веревкин (@Injent)</b>\n')
-    await callback.message.edit_text(text=about_text,
-                                     reply_markup=KB.start_menu(is_about=True))
+        '\U0001f464 <b>Разработчик приложения:</b> студент ПрИ-301 — <b>Елисей Веревкин (@Injent)</b>\n'
+    )
+    await callback.message.edit_text(text=about_text, reply_markup=KB.start_menu(is_about=True))
 
 
 @auth_router.callback_query(F.data.in_({'choose_group', 'choose_teacher'}))
@@ -67,8 +70,8 @@ async def handle_search_setup(callback: CallbackQuery, state: FSMContext):
     img_key = 'group_search' if is_group else 'teachers_search'
     text = (
         '\U0001f447 Введите группу (можно неполностью)\nПример: «ИСТ», «АД СПО» или «ЭКОНм»'
-        if is_group else
-        '\U0001f447 Введите фамилию преподавателя (можно неполностью)\nПример: «Казаков»'
+        if is_group
+        else '\U0001f447 Введите фамилию преподавателя (можно неполностью)\nПример: «Казаков»'
     )
 
     data = await state.get_data()
@@ -80,7 +83,7 @@ async def handle_search_setup(callback: CallbackQuery, state: FSMContext):
         await callback.bot.edit_message_media(
             chat_id=callback.from_user.id,
             message_id=data.get('photo_msg_id'),
-            media=InputMediaPhoto(media=graphics_id[img_key])
+            media=InputMediaPhoto(media=graphics_id[img_key]),
         )
 
     msg = await callback.message.edit_text(text=text, reply_markup=KB.cancel_group_search())
@@ -108,30 +111,27 @@ async def handle_search_results(message: Message, state: FSMContext):
 
     if not search_resp:
         if is_group:
-            text = (f'\U0001f914 По запросу "{search_query}" ничего не нашлось.\n\n'
-                    'Бот отображает <b>только группы бакалавриата, магистратуры и СПО</b>\n\n'
-                    'Если вы <b>БАК или СПО</b> — проверьте написание группы '
-                    '(для СПО необходимо писать "АД СПО" <u>или просто "СПО"</u>).\n\n'
-                    '\U0001f447 Введите новый запрос ниже')
+            text = (
+                f'\U0001f914 По запросу "{search_query}" ничего не нашлось.\n\n'
+                'Бот отображает <b>только группы бакалавриата, магистратуры и СПО</b>\n\n'
+                'Если вы <b>БАК или СПО</b> — проверьте написание группы '
+                '(для СПО необходимо писать "АД СПО" <u>или просто "СПО"</u>).\n\n'
+                '\U0001f447 Введите новый запрос ниже'
+            )
         else:
-            text = (f'\U0001f914 По запросу "{search_query}" ничего не нашлось.\n\n'
-                    'Проверьте правильность написания фамилии преподавателя.\n'
-                    'Возможно буква «Е» на самом деле «Ё»\n\n'
-                    '\U0001f447 Введите новый запрос ниже')
+            text = (
+                f'\U0001f914 По запросу "{search_query}" ничего не нашлось.\n\n'
+                'Проверьте правильность написания фамилии преподавателя.\n'
+                'Возможно буква «Е» на самом деле «Ё»\n\n'
+                '\U0001f447 Введите новый запрос ниже'
+            )
 
-        await message.bot.edit_message_text(
-            chat_id=message.from_user.id,
-            message_id=bot_msg_id,
-            text=text
-        )
+        await message.bot.edit_message_text(chat_id=message.from_user.id, message_id=bot_msg_id, text=text)
     else:  # Успешный поиск
         success_text = 'Выберите группу \U0001f447 ' if is_group else 'Выберите преподавателя \U0001f447 '
         kb = KB.groups_search_results(search_resp) if is_group else KB.teacher_search_results(search_resp)
         await message.bot.edit_message_text(
-            chat_id=message.from_user.id,
-            message_id=bot_msg_id,
-            text=success_text,
-            reply_markup=kb
+            chat_id=message.from_user.id, message_id=bot_msg_id, text=success_text, reply_markup=kb
         )
 
 
@@ -166,8 +166,7 @@ async def bind_entity_to_user(callback: CallbackQuery, state: FSMContext):
         await DB.add_user(user_id=user_id, teacher_name=entity_name)
 
         await callback.bot.send_message(
-            chat_id=config.admin_tg_id,
-            text=f'Новый преподаватель: {entity_name}, @{callback.from_user.username}'
+            chat_id=config.admin_tg_id, text=f'Новый преподаватель: {entity_name}, @{callback.from_user.username}'
         )
 
     # 4. Чистка интерфейса (удаляем картинку и сообщение с кнопками)
@@ -181,10 +180,11 @@ async def bind_entity_to_user(callback: CallbackQuery, state: FSMContext):
     await asyncio.sleep(1)
 
     if not fsm_data.get('old_user'):
-        extra_line = '\n👤 Расписание преподавателей — узнайте в 2 клика, где можно найти преподавателя\n'\
-            if is_group else ''
+        extra_line = (
+            '\n👤 Расписание преподавателей — узнайте в 2 клика, где можно найти преподавателя\n' if is_group else ''
+        )
 
-        onboarding_text = (
+        onboarding_text_1 = (
             f'✍️ <b>Быстрый экскурс в бота</b>\n\n'
             f'📖 — <b>лекция</b>\n'
             f'🔬 — <b>практика</b>\n'
@@ -192,7 +192,13 @@ async def bind_entity_to_user(callback: CallbackQuery, state: FSMContext):
             f'🗣️ Если есть предложения/замечания — пишите мне! @koespe'
         )
 
-        await callback.message.answer(onboarding_text)
+        onboarding_text_2 = hlink(
+            "\u2764\ufe0f Добавьте ярлык на IOS для быстрого доступа", "https://telegra.ph/Dostup-odnoj-knopkoj-IOS-01-30"
+        )
+
+        await callback.message.answer(onboarding_text_1)
+        await asyncio.sleep(3)
+        await callback.message.answer(onboarding_text_2)
         await asyncio.sleep(3)
 
     # 6. Отправляем расписание
@@ -213,8 +219,10 @@ async def handle_cancelling_group_search(callback: CallbackQuery, state: FSMCont
 
 @auth_router.message(CommandStart(deep_link=True, magic=F.args == "support_words"))
 async def handle_support_words(message: Message, state: FSMContext):
-    msg_text = ('\U0001f917 Вы можете поддержать разработчиков теплыми словами, им будет очень приятно!\n'
-                'Напишите одно сообщение')
+    msg_text = (
+        '\U0001f917 Вы можете поддержать разработчиков теплыми словами, им будет очень приятно!\n'
+        'Напишите одно сообщение'
+    )
     await message.answer(msg_text)
     await state.set_state(SupportWordsState.waiting_for_msg)
 
