@@ -44,20 +44,27 @@ class KB:
             kb.row(
                 InlineKeyboardButton(text='\u2b05\ufe0f', callback_data='schedule_page_prev'),
                 InlineKeyboardButton(text='\U0001f504', callback_data='schedule_page_refresh'),
-                InlineKeyboardButton(text='\u27a1\ufe0f', callback_data='schedule_page_next')
+                InlineKeyboardButton(text='\u27a1\ufe0f', callback_data='schedule_page_next'),
             )
         else:
             kb.row(
                 InlineKeyboardButton(text='\u2b05\ufe0f', callback_data='schedule_page_prev'),
-                InlineKeyboardButton(text='\u27a1\ufe0f', callback_data='schedule_page_next')
+                InlineKeyboardButton(text='\u27a1\ufe0f', callback_data='schedule_page_next'),
             )
         kb.row(InlineKeyboardButton(text=change_view_button_text, callback_data='schedule_change_view'))
         if is_favorite:
-            kb.row(InlineKeyboardButton(text='\U0001f3e0 Вернуться к своей группе', callback_data='favorite_group_exit'))
+            kb.row(
+                InlineKeyboardButton(text='\U0001f3e0 Вернуться к своей группе', callback_data='favorite_group_exit')
+            )
         else:
             kb.row(InlineKeyboardButton(text='\u2b50 Избранные группы', callback_data='favorite_groups'))
             kb.row(InlineKeyboardButton(text='\U0001f464 Расписание преподавателей', callback_data='teachers'))
-            kb.row(InlineKeyboardButton(text='\u26d1\ufe0f Сообщить об ошибке', url='https://t.me/koespe'))
+            kb.row(
+                InlineKeyboardButton(text='\u26d1\ufe0f Сообщить об ошибке', url='https://t.me/koespe'),
+                InlineKeyboardButton(
+                    text='\U0001f4f1 Ярлык для IOS', url='https://telegra.ph/Dostup-odnoj-knopkoj-IOS-01-30'
+                ),
+            )
             kb.row(InlineKeyboardButton(text='\u2699\ufe0f Настройки', callback_data='settings_main'))
         return kb.as_markup()
 
@@ -138,7 +145,9 @@ class KB:
                 group_name_resp: dict = await group_name_req.json()
                 if group_name_req.status == 200:  # Обработка удаленной группы
                     group_name = group_name_resp[0].get('name')
-                    kb.row(InlineKeyboardButton(text=group_name, callback_data=f'favorite_group_{action_word}={group_id}'))
+                    kb.row(
+                        InlineKeyboardButton(text=group_name, callback_data=f'favorite_group_{action_word}={group_id}')
+                    )
         if not is_deleting:
             kb.row(InlineKeyboardButton(text='+ Добавить группу', callback_data=f'favorite_group_search'))
             if len(user_favorite_groups) > 0:
