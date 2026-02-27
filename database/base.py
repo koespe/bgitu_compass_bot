@@ -1,9 +1,9 @@
 from contextlib import asynccontextmanager, suppress
 from typing import Optional
 
+from sqlalchemy import select, delete, update, case
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import select, delete, update, case
 
 from config_reader import sessionmaker
 from database.models import Users
@@ -40,7 +40,8 @@ class DB:
                 index_elements=[Users.id],  # Указываем колонку, по которой ловим конфликт
                 set_=dict(
                     group_name=insert_statement.excluded.group_name,
-                    group_id=insert_statement.excluded.group_id
+                    group_id=insert_statement.excluded.group_id,
+                    teacher_name=insert_statement.excluded.teacher_name
                 )
             )
 

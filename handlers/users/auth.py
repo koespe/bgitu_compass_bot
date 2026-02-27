@@ -40,15 +40,18 @@ async def handle_start_command(update: Union[Message, CallbackQuery, Update], st
         await update.answer(text=welcome_text, reply_markup=KB.start_menu())
     else:
         fsm_data = await state.get_data()
-        try:
+        photo_msg_id = fsm_data.get('photo_msg_id')
+        if photo_msg_id:
             await update.bot.edit_message_media(
                 chat_id=update.from_user.id,
                 message_id=fsm_data.get('photo_msg_id'),
                 media=InputMediaPhoto(media=graphics_id['start_menu']),
             )
-        except TelegramBadRequest:
-            pass
-        await update.message.edit_text(text=welcome_text, reply_markup=KB.start_menu())
+            await update.message.edit_text(text=welcome_text, reply_markup=KB.start_menu())
+        else:  # Был сброс данных через кнопку в настройках
+            photo_msg = await update.message.answer_photo(photo=graphics_id['start_menu'])
+            await state.update_data(photo_msg_id=photo_msg.message_id)
+            await update.message.answer(text=welcome_text, reply_markup=KB.start_menu())
 
 
 @auth_router.callback_query(F.data == 'about')
@@ -67,15 +70,17 @@ async def about_project(callback: CallbackQuery):
 async def handle_search_setup(callback: CallbackQuery, state: FSMContext):
     is_group = callback.data == 'choose_group'
     next_state = AuthState.requesting_group_name if is_group else AuthState.requesting_teacher_name
+    cancel_keyboard = KB.cancel_group_search()
     img_key = 'group_search' if is_group else 'teachers_search'
     text = (
         '\U0001f447 Введите группу (можно неполностью)\nПример: «ИСТ», «АД СПО» или «ЭКОНм»'
         if is_group
-        else '\U0001f447 Введите фамилию преподавателя (можно неполностью)\nПример: «Казаков»'
+        else '\U0001f447 Введите фамилию (можно неполностью)\nПример: «Казаков»'
     )
 
     data = await state.get_data()
     if data.get('offset') is not None:
+        cancel_keyboard = KB.back_to_schedule()
         await state.update_data(old_user=True)
 
     await state.set_state(next_state)
@@ -86,7 +91,7 @@ async def handle_search_setup(callback: CallbackQuery, state: FSMContext):
             media=InputMediaPhoto(media=graphics_id[img_key]),
         )
 
-    msg = await callback.message.edit_text(text=text, reply_markup=KB.cancel_group_search())
+    msg = await callback.message.edit_text(text=text, reply_markup=cancel_keyboard)
     await state.update_data(bot_msg_id=msg.message_id)
 
 
@@ -129,13 +134,17 @@ async def handle_search_results(message: Message, state: FSMContext):
         await message.bot.edit_message_text(chat_id=message.from_user.id, message_id=bot_msg_id, text=text)
     else:  # Успешный поиск
         success_text = 'Выберите группу \U0001f447 ' if is_group else 'Выберите преподавателя \U0001f447 '
-        kb = KB.groups_search_results(search_resp) if is_group else KB.teacher_search_results(search_resp)
+        # Сохраняем список преподавателей в state для последующего использования по индексу
+        if not is_group:
+            await state.update_data(teachers_list=search_resp)
+        kb = KB.groups_search_results(search_resp) if is_group else KB.teachers_search_results(search_resp,
+                                                                                               is_auth=True)
         await message.bot.edit_message_text(
             chat_id=message.from_user.id, message_id=bot_msg_id, text=success_text, reply_markup=kb
         )
 
 
-@auth_router.callback_query(F.data.startswith(('select_group', 'select_teacher_main')))
+@auth_router.callback_query(F.data.startswith(('select_group', 'select_teacher_auth')))
 async def bind_entity_to_user(callback: CallbackQuery, state: FSMContext):
     fsm_data = await state.get_data()
     is_group = callback.data.startswith('select_group')
@@ -146,7 +155,13 @@ async def bind_entity_to_user(callback: CallbackQuery, state: FSMContext):
         parts = callback.data.split('_')
         group_id, entity_name = int(parts[2]), parts[3]
     else:
-        entity_name = callback.data.split('=')[1]
+        # Получаем имя преподавателя из state по индексу
+        teacher_idx = int(callback.data.split('=')[1])
+        teachers_list = fsm_data.get('teachers_list', [])
+        if teacher_idx >= len(teachers_list):
+            await callback.answer('\u26a0\ufe0f Ошибка: преподаватель не найден', show_alert=True)
+            return
+        entity_name = teachers_list[teacher_idx]
 
     # 2. Обработка "Избранного"
     if is_group and fsm_data.get('favorites_request'):
@@ -157,14 +172,16 @@ async def bind_entity_to_user(callback: CallbackQuery, state: FSMContext):
         return
 
     # 3. Регистрация
-    if fsm_data.get('old_user'):
-        await DB.logout(user_id)
-
     if is_group:
         await DB.add_user(user_id=user_id, group_name=entity_name, group_id=group_id)
     else:
-        await DB.add_user(user_id=user_id, teacher_name=entity_name)
-
+        # Если студент стал преподом (через кнопку "Настройки") — обнуляем поля студентов во избежание ошибок
+        await DB.add_user(
+            user_id=user_id,
+            group_name=None,
+            group_id=None,
+            teacher_name=entity_name
+        )
         await callback.bot.send_message(
             chat_id=config.admin_tg_id, text=f'Новый преподаватель: {entity_name}, @{callback.from_user.username}'
         )
