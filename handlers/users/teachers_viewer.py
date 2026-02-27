@@ -113,11 +113,9 @@ async def handle_teacher_schedule(callback: CallbackQuery, state: FSMContext):
 
     fsm_data = await state.get_data()
     graphics = InputMediaPhoto(media=graphics_id['teachers_schedule'])
-    try:
+    with suppress(TelegramBadRequest):
         await callback.bot.edit_message_media(
             chat_id=callback.from_user.id, message_id=fsm_data.get('photo_msg_id'), media=graphics
         )
-    except TelegramBadRequest:
-        pass
 
     await callback.message.edit_text(text=message_text, reply_markup=KB.back_to_schedule())

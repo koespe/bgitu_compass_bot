@@ -167,12 +167,10 @@ async def broadcast_ad(message: Message, state: FSMContext):
         user_list = list(user[0] for user in users)
 
     for user in user_list:
-        try:
+        with suppress(Exception):
             await message.bot.forward_message(
                 chat_id=user, from_chat_id=from_chat_id, message_id=message_id, disable_notification=True
             )
-        except:
-            continue
         await asyncio.sleep(0.2)
 
     await state.clear()

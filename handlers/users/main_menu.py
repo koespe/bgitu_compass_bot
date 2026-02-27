@@ -1,5 +1,6 @@
 import asyncio
 import datetime
+from contextlib import suppress
 from typing import Union
 
 from aiogram import Router, F
@@ -117,14 +118,12 @@ async def handle_schedule(update: Union[Update, CallbackQuery, Message], state: 
         )
         await state.update_data(photo_msg_id=photo_msg.message_id)
     else:  # Стандартная ситуация
-        try:
+        with suppress(TelegramBadRequest):
             await update.bot.edit_message_media(
                 chat_id=user_id,
                 message_id=fsm_data.get('photo_msg_id'),
                 media=InputMediaPhoto(media=graphics)
             )
-        except TelegramBadRequest:
-            pass
 
         await update.bot.edit_message_text(
             chat_id=user_id,
@@ -153,14 +152,12 @@ async def handle_page_changes(update: Update, state: FSMContext):
         action = 'next'
         await state.update_data(refresh=True)
         await state.update_data(offset=0)
-        try:
+        with suppress(Exception):
             await update.bot.delete_message(
                 chat_id=update.from_user.id,  # БЕЗ .message
                 message_id=user_data.get('photo_msg_id')
             )
             await update.message.delete()
-        except:
-            pass
 
     await state.update_data(action=action)
     await handle_schedule(update, state)
@@ -178,11 +175,12 @@ async def settings(callback: CallbackQuery, state: FSMContext):
     is_student = bool(group_name)
 
     graphics = InputMediaPhoto(media=graphics_id["settings"])
-    await callback.bot.edit_message_media(
-        chat_id=user_id,
-        message_id=fsm_data["photo_msg_id"],
-        media=graphics,
-    )
+    with suppress(TelegramBadRequest):
+        await callback.bot.edit_message_media(
+            chat_id=user_id,
+            message_id=fsm_data["photo_msg_id"],
+            media=graphics,
+        )
 
     msg_text = (
         f"Ваша основная группа: <b>{group_name}</b>"
@@ -215,11 +213,8 @@ async def handle_reset_all_data(callback: CallbackQuery, state: FSMContext):
     fsm_data = await state.get_data()
 
     photo_msg_id = fsm_data.get('photo_msg_id')
-    if photo_msg_id:
-        try:
-            await callback.bot.delete_message(chat_id=user_id, message_id=photo_msg_id)
-        except:
-            pass
+    with suppress(Exception):
+        await callback.bot.delete_message(chat_id=user_id, message_id=photo_msg_id)
 
     await DB.logout(user_id)
 

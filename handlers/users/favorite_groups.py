@@ -1,3 +1,5 @@
+from contextlib import suppress
+
 import aiohttp
 from aiogram import Router, F
 from aiogram.exceptions import TelegramBadRequest
@@ -19,14 +21,12 @@ favorite_groups_router = Router()
 @favorite_groups_router.callback_query(F.data.in_({'favorite_group_delete_button', 'favorite_groups'}))
 async def favorite_groups_menu(callback: CallbackQuery, state: FSMContext):
     fsm_data = await state.get_data()
-    try:
+    with suppress(TelegramBadRequest):
         await callback.bot.edit_message_media(
             chat_id=callback.from_user.id,
             message_id=fsm_data.get('photo_msg_id'),
             media=InputMediaPhoto(media=graphics_id['favorites_main_menu'])
         )
-    except TelegramBadRequest:
-        pass
 
     is_deleting = True if callback.data == 'favorite_group_delete_button' else False
 
@@ -44,14 +44,12 @@ async def favorite_groups_menu(callback: CallbackQuery, state: FSMContext):
 async def favorite_group_search(callback: CallbackQuery, state: FSMContext):
     # Вызываем обычную функцию выбора группы, но прокидываем еще флаг
     fsm_data = await state.get_data()
-    try:
+    with suppress(TelegramBadRequest):
         await callback.bot.edit_message_media(
             chat_id=callback.from_user.id,
             message_id=fsm_data.get('photo_msg_id'),
             media=InputMediaPhoto(media=graphics_id['favorites_search'])
         )
-    except TelegramBadRequest:
-        pass
 
     await state.update_data(favorites_request=True)
     await state.set_state(states.AuthState.requesting_group_name)

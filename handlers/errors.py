@@ -8,7 +8,7 @@ errors_handler_router = Router()
 
 @errors_handler_router.error(ExceptionTypeFilter(TelegramBadRequest))
 async def handle_my_custom_exception(event: ErrorEvent):
-    try:  # Не уверен, что через isinstance(event.update.callback_query, CallbackQuery)
+    try:
         user_id = event.update.callback_query.from_user.id
         await event.update.callback_query.answer(text='\U0001f50d Используйте новое сообщение')
         await event.update.callback_query.bot.send_message(chat_id=user_id,

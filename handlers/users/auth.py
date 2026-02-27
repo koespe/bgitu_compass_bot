@@ -42,11 +42,12 @@ async def handle_start_command(update: Union[Message, CallbackQuery, Update], st
         fsm_data = await state.get_data()
         photo_msg_id = fsm_data.get('photo_msg_id')
         if photo_msg_id:
-            await update.bot.edit_message_media(
-                chat_id=update.from_user.id,
-                message_id=fsm_data.get('photo_msg_id'),
-                media=InputMediaPhoto(media=graphics_id['start_menu']),
-            )
+            with suppress(TelegramBadRequest):
+                await update.bot.edit_message_media(
+                    chat_id=update.from_user.id,
+                    message_id=fsm_data.get('photo_msg_id'),
+                    media=InputMediaPhoto(media=graphics_id['start_menu']),
+                )
             await update.message.edit_text(text=welcome_text, reply_markup=KB.start_menu())
         else:  # Был сброс данных через кнопку в настройках
             photo_msg = await update.message.answer_photo(photo=graphics_id['start_menu'])
