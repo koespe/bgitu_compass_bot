@@ -1,7 +1,9 @@
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
+from typing import Optional
 
+from sqlalchemy import select, delete, update, case
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import select
 
 from config_reader import sessionmaker
 from database.models import Users
@@ -21,28 +23,36 @@ async def get_session():
 
 class DB:
     @staticmethod
-    async def add_user(user_id: int, group_name: str, group_id: int) -> None:
+    async def add_user(user_id: Optional[int] = None,
+                       group_name: Optional[str] = None,
+                       group_id: Optional[int] = None,
+                       teacher_name: Optional[str] = None) -> None:
         async with get_session() as session:
-            user = Users(id=user_id,
-                         group_name=group_name,
-                         group_id=group_id)
-            session.add(user)
-            try:
-                await session.commit()
-            except IntegrityError:
-                await session.rollback()
-                old_user_data_query = select(Users).where(Users.id == user_id)
-                old_user_data = await session.scalar(old_user_data_query)
-                if old_user_data is not None:
-                    await session.delete(old_user_data)
-                session.add(user)
-                await session.commit()
+            insert_statement = insert(Users).values(
+                id=user_id,
+                group_name=group_name,
+                group_id=group_id,
+                teacher_name=teacher_name
+            )
+
+            # Если конфликт по PK (id), обновляем остальные поля
+            insert_statement = insert_statement.on_conflict_do_update(
+                index_elements=[Users.id],  # Указываем колонку, по которой ловим конфликт
+                set_=dict(
+                    group_name=insert_statement.excluded.group_name,
+                    group_id=insert_statement.excluded.group_id,
+                    teacher_name=insert_statement.excluded.teacher_name
+                )
+            )
+
+            await session.execute(insert_statement)
+            await session.commit()
 
     @staticmethod
     async def is_user_authorized(user_id: int) -> bool:
         async with get_session() as session:
-            resp = (await session.execute(select(Users).filter(Users.id == user_id))).scalar()
-        return resp is not None
+            query = select(1).where(Users.id == user_id)
+            return (await session.scalar(query)) is not None
 
     @staticmethod
     async def user_data(user_id: int) -> dict:
@@ -50,33 +60,34 @@ class DB:
             query = await session.execute(select(Users.group_id,
                                                  Users.group_name,
                                                  Users.last_schedule_view,
-                                                 Users.favorite_groups
+                                                 Users.favorite_groups,
+                                                 Users.teacher_name
                                                  ).filter(Users.id == user_id))
             user_data = dict(query.one()._mapping)
             return user_data
 
     @staticmethod
-    async def logout(user_id: int):
+    async def logout(user_id: int) -> None:
         async with get_session() as session:
-            query = select(Users).filter(Users.id == user_id)
-            user_data = await session.scalar(query)
-            try:  # Очень ленивое решение непонятной ошибки алхимии при выборе группы после ошибки 409
-                await session.delete(user_data)
+            with suppress(IntegrityError):
+                await session.execute(delete(Users).where(Users.id == user_id))
                 await session.commit()
-            except:
-                pass
 
     @staticmethod
     async def change_schedule_view(user_id: int) -> None:
-        async with (get_session() as session):
-            query = await session.execute(select(Users).filter(Users.id == user_id))
-            user = query.scalar()
-            user.last_schedule_view = 'daily' if user.last_schedule_view == 'weekly' else 'weekly'
-            session.add(user)
+        async with get_session() as session:
+            # SQL: UPDATE users SET view = CASE WHEN view = 'weekly' THEN 'daily' ELSE 'weekly' END WHERE id = ...
+            stmt = update(Users).where(Users.id == user_id).values(
+                last_schedule_view=case(
+                    (Users.last_schedule_view == 'weekly', 'daily'),
+                    else_='weekly'
+                )
+            )
+            await session.execute(stmt)
             await session.commit()
 
     @staticmethod
-    async def manage_favorites(action: str, user_id: int, group_id: int):
+    async def manage_favorites(action: str, user_id: int, group_id: int) -> None:
         async with (get_session() as session):
             query = await session.execute(select(Users).filter(Users.id == user_id))
             user: Users = query.scalar()

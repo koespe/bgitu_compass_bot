@@ -10,7 +10,8 @@ class KB:
     @staticmethod
     def start_menu(is_about=False):
         kb = InlineKeyboardBuilder()
-        kb.row(InlineKeyboardButton(text='\u27a1\ufe0f Выбрать группу', callback_data='choose_group'))
+        kb.row(InlineKeyboardButton(text='\U0001f393 Я студент', callback_data='choose_group'))
+        kb.row(InlineKeyboardButton(text='\U0001f464 Я преподаватель', callback_data='choose_teacher'))
         if not is_about:
             kb.row(InlineKeyboardButton(text='\u2139\ufe0f О проекте', callback_data='about'))
         return kb.as_markup()
@@ -28,8 +29,6 @@ class KB:
             group_id = group.get('id')
             group_name = group.get('name')
             kb.add(InlineKeyboardButton(text=group_name, callback_data=f'select_group_{group_id}_{group_name}'))
-
-        kb.add(InlineKeyboardButton(text='\U0001f928 Отсутствует группа?', callback_data='no_mine_group'))
         return kb.adjust(1).as_markup()
 
     @staticmethod
@@ -45,21 +44,28 @@ class KB:
             kb.row(
                 InlineKeyboardButton(text='\u2b05\ufe0f', callback_data='schedule_page_prev'),
                 InlineKeyboardButton(text='\U0001f504', callback_data='schedule_page_refresh'),
-                InlineKeyboardButton(text='\u27a1\ufe0f', callback_data='schedule_page_next')
+                InlineKeyboardButton(text='\u27a1\ufe0f', callback_data='schedule_page_next'),
             )
         else:
             kb.row(
                 InlineKeyboardButton(text='\u2b05\ufe0f', callback_data='schedule_page_prev'),
-                InlineKeyboardButton(text='\u27a1\ufe0f', callback_data='schedule_page_next')
+                InlineKeyboardButton(text='\u27a1\ufe0f', callback_data='schedule_page_next'),
             )
         kb.row(InlineKeyboardButton(text=change_view_button_text, callback_data='schedule_change_view'))
         if is_favorite:
-            kb.row(InlineKeyboardButton(text='\U0001f3e0 Вернуться к своей группе', callback_data='favorite_group_exit'))
+            kb.row(
+                InlineKeyboardButton(text='\U0001f3e0 Вернуться к своей группе', callback_data='favorite_group_exit')
+            )
         else:
             kb.row(InlineKeyboardButton(text='\u2b50 Избранные группы', callback_data='favorite_groups'))
             kb.row(InlineKeyboardButton(text='\U0001f464 Расписание преподавателей', callback_data='teachers'))
-            kb.row(InlineKeyboardButton(text='\u26d1\ufe0f Сообщить об ошибке', url='https://t.me/koespe'))
-            kb.row(InlineKeyboardButton(text='\u2699\ufe0f Настройки', callback_data='settings_main'))
+            kb.row(
+                InlineKeyboardButton(text='\u26d1\ufe0f Сообщить об ошибке', url='https://t.me/koespe'),
+                InlineKeyboardButton(
+                    text='\U0001f4f1 Ярлык для IOS', url='https://telegra.ph/Dostup-odnoj-knopkoj-IOS-01-30'
+                ),
+            )
+            kb.row(InlineKeyboardButton(text='\u2699\ufe0f Настройки', callback_data='settings'))
         return kb.as_markup()
 
     @staticmethod
@@ -69,20 +75,50 @@ class KB:
         return kb.as_markup()
 
     @staticmethod
-    def settings():
+    async def favorites_main_menu(user_id: int, is_deleting: bool = False):
+        user_favorite_groups: list = (await DB.user_data(user_id)).get('favorite_groups')
+
+        action_word = 'delete' if is_deleting else 'open'
         kb = InlineKeyboardBuilder()
-        kb.row(InlineKeyboardButton(text='\U0001f928 Изменить основную группу', callback_data='choose_group'))
-        kb.row(InlineKeyboardButton(text='\u26d1\ufe0f Поддержка бота', url='https://t.me/koespe'))
+        async with aiohttp.ClientSession() as web_session:
+            for group_id in user_favorite_groups:
+
+                group_name_req = await web_session.get(url=config.api_host + f'groups?groupId={group_id}')
+                group_name_resp: dict = await group_name_req.json()
+                if group_name_req.status == 200:  # Обработка удаленной группы
+                    group_name = group_name_resp[0].get('name')
+                    kb.row(
+                        InlineKeyboardButton(text=group_name, callback_data=f'favorite_group_{action_word}={group_id}')
+                    )
+        if not is_deleting:
+            kb.row(InlineKeyboardButton(text='+ Добавить группу', callback_data=f'favorite_group_search'))
+            if len(user_favorite_groups) > 0:
+                kb.row(InlineKeyboardButton(text='– Удалить группу', callback_data='favorite_group_delete_button'))
         kb.row(InlineKeyboardButton(text='\u21aa\ufe0f Вернуться назад', callback_data='back_to_schedule'))
         return kb.as_markup()
 
     @staticmethod
-    def teachers_search_results(teachers: list):
+    def teachers_search_results(teachers: list, is_auth: bool = False):
         kb = InlineKeyboardBuilder()
-        for teacher in teachers:
-            kb.row(InlineKeyboardButton(text=teacher, callback_data=f'select_teacher={teacher}'))
-        kb.row(InlineKeyboardButton(text='\u21aa\ufe0f Вернуться назад', callback_data='back_to_schedule'))
+        callback_prefix = "select_teacher_auth" if is_auth else "select_teacher"
+        back_callback = 'cancel_group_search' if is_auth else 'back_to_schedule'
+        for idx, teacher_name in enumerate(teachers):
+            kb.row(InlineKeyboardButton(text=teacher_name, callback_data=f"{callback_prefix}={idx}"))
+        kb.row(InlineKeyboardButton(text='\u21aa\ufe0f Вернуться назад', callback_data=back_callback))
         return kb.adjust(1).as_markup()
+
+    @staticmethod
+    def settings(is_student: bool):
+        kb = InlineKeyboardBuilder()
+        if is_student:
+            kb.row(InlineKeyboardButton(text='Изменить основную группу', callback_data='choose_group'))
+            kb.row(InlineKeyboardButton(text='Включить режим преподавателя', callback_data='choose_teacher'))
+        else:
+            kb.row(InlineKeyboardButton(text='Выбрать другого преподавателя', callback_data='choose_teacher'))
+        kb.row(InlineKeyboardButton(text='\u26d1\ufe0f Поддержка', url='https://t.me/koespe'),
+               InlineKeyboardButton(text='\U0001f504 Сбросить данные', callback_data='reset_all_data'))
+        kb.row(InlineKeyboardButton(text='\u21aa\ufe0f Вернуться назад', callback_data='back_to_schedule'))
+        return kb.as_markup()
 
     @staticmethod
     def admin_panel():
@@ -115,25 +151,4 @@ class KB:
     def cancel_broadcast():
         kb = InlineKeyboardBuilder()
         kb.row(InlineKeyboardButton(text='Отменить рассылку', callback_data='cancel_broadcast'))
-        return kb.as_markup()
-
-    @staticmethod
-    async def favorites_main_menu(user_id: int, is_deleting: bool = False):
-        user_favorite_groups: list = (await DB.user_data(user_id)).get('favorite_groups')
-
-        action_word = 'delete' if is_deleting else 'open'
-        kb = InlineKeyboardBuilder()
-        async with aiohttp.ClientSession() as web_session:
-            for group_id in user_favorite_groups:
-
-                group_name_req = await web_session.get(url=config.api_host + f'groups?groupId={group_id}')
-                group_name_resp: dict = await group_name_req.json()
-                if group_name_req.status == 200:  # Обработка удаленной группы
-                    group_name = group_name_resp[0].get('name')
-                    kb.row(InlineKeyboardButton(text=group_name, callback_data=f'favorite_group_{action_word}={group_id}'))
-        if not is_deleting:
-            kb.row(InlineKeyboardButton(text='+ Добавить группу', callback_data=f'favorite_group_search'))
-            if len(user_favorite_groups) > 0:
-                kb.row(InlineKeyboardButton(text='– Удалить группу', callback_data='favorite_group_delete_button'))
-        kb.row(InlineKeyboardButton(text='\u21aa\ufe0f Вернуться назад', callback_data='back_to_schedule'))
         return kb.as_markup()

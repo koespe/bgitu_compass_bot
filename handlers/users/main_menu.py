@@ -1,14 +1,12 @@
 import asyncio
 import datetime
+from contextlib import suppress
 from typing import Union
 
-import aiohttp
-from aiogram import Router, F, Bot
+from aiogram import Router, F
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import Message, CallbackQuery, Update, InputMediaPhoto
-from aiogram.filters import StateFilter
 
 from config_reader import graphics_id
 from database.base import DB
@@ -36,7 +34,7 @@ async def handle_schedule(update: Union[Update, CallbackQuery, Message], state: 
     if last_use_date is None or fsm_data.get('refresh'):  # Если человек сделал /start или нажал refresh
         last_use_date = datetime.datetime.today().strftime('%Y-%m-%d')
     if offset is None:
-        if schedule_view == 'daily' and datetime.datetime.now().hour > 15: # Вряд ли нужно расписание на сегодня
+        if schedule_view == 'daily' and datetime.datetime.now().hour > 15:  # Вряд ли нужно расписание на сегодня
             offset = 1
         elif schedule_view == 'weekly' and datetime.datetime.now().weekday() == 6:
             offset = 1
@@ -55,6 +53,7 @@ async def handle_schedule(update: Union[Update, CallbackQuery, Message], state: 
                 offset -= datetime.date.today().isocalendar().week - last_use_date_obj.isocalendar().week
                 await state.update_data(offset=offset)
 
+    teacher_name = user_data.get('teacher_name')
     favorite_group_id = fsm_data.get('favorite_group_id')
     favorite_group_name = fsm_data.get('favorite_group_name')
     is_favorite = True if favorite_group_id else False
@@ -62,10 +61,12 @@ async def handle_schedule(update: Union[Update, CallbackQuery, Message], state: 
 
     is_holiday_skipped = False
     for _ in range(offset, offset + 7):
-        msg_text = await form_schedule_message(user_id=user_id, offset=offset,
+        msg_text = await form_schedule_message(user_id=user_id,
+                                               offset=offset,
                                                favorite_group_id=favorite_group_id,
-                                               favorite_group_name=favorite_group_name)
-        
+                                               favorite_group_name=favorite_group_name,
+                                               teacher_name=teacher_name)
+
         # Проверяем на ошибку группы не найдена
         if msg_text == "GROUP_NOT_FOUND_ERROR":
             await DB.logout(user_id)
@@ -76,7 +77,7 @@ async def handle_schedule(update: Union[Update, CallbackQuery, Message], state: 
             from handlers.users.auth import handle_start_command
             await handle_start_command(update, state)
             return
-        
+
         # Проверяем на ошибку с избранной группой
         if msg_text == "FAV_GROUP_NOT_FOUND_ERROR":
             await DB.manage_favorites(action="delete", user_id=user_id, group_id=favorite_group_id)
@@ -85,12 +86,12 @@ async def handle_schedule(update: Union[Update, CallbackQuery, Message], state: 
                 await update.answer(text="Выбранная группа не была найдена")
             else:
                 await update.bot.send_message(chat_id=user_id, text=msg_text)
-            
+
             # Возвращаем в меню избранных групп
             from handlers.users.favorite_groups import favorite_groups_menu
             await favorite_groups_menu(update, state)
             return
-        
+
         if len(msg_text) == 0:
             if last_action == 'next' or last_action is None:  # Может выходной сегодня
                 offset += 1
@@ -117,14 +118,12 @@ async def handle_schedule(update: Union[Update, CallbackQuery, Message], state: 
         )
         await state.update_data(photo_msg_id=photo_msg.message_id)
     else:  # Стандартная ситуация
-        try:
+        with suppress(TelegramBadRequest):
             await update.bot.edit_message_media(
                 chat_id=user_id,
                 message_id=fsm_data.get('photo_msg_id'),
                 media=InputMediaPhoto(media=graphics)
             )
-        except TelegramBadRequest:
-            pass
 
         await update.bot.edit_message_text(
             chat_id=user_id,
@@ -153,33 +152,45 @@ async def handle_page_changes(update: Update, state: FSMContext):
         action = 'next'
         await state.update_data(refresh=True)
         await state.update_data(offset=0)
-        try:
+        with suppress(Exception):
             await update.bot.delete_message(
                 chat_id=update.from_user.id,  # БЕЗ .message
                 message_id=user_data.get('photo_msg_id')
             )
             await update.message.delete()
-        except:
-            pass
 
     await state.update_data(action=action)
     await handle_schedule(update, state)
 
 
-@main_menu_router.callback_query(F.data == 'settings_main')
-async def settings(update: Update, state: FSMContext):
-    user_id = update.from_user.id
+@main_menu_router.callback_query(F.data == "settings")
+async def settings(callback: CallbackQuery, state: FSMContext):
     fsm_data = await state.get_data()
+    user_id = callback.from_user.id
+
     user_data = await DB.user_data(user_id)
-    group_name = user_data.get('group_name')
-    graphics = InputMediaPhoto(media=graphics_id['settings'])
-    await update.bot.edit_message_media(
-        chat_id=user_id,
-        message_id=fsm_data.get('photo_msg_id'),
-        media=graphics
+    group_name = user_data.get("group_name")
+    teacher_name = user_data.get("teacher_name")
+
+    is_student = bool(group_name)
+
+    graphics = InputMediaPhoto(media=graphics_id["settings"])
+    with suppress(TelegramBadRequest):
+        await callback.bot.edit_message_media(
+            chat_id=user_id,
+            message_id=fsm_data["photo_msg_id"],
+            media=graphics,
+        )
+
+    msg_text = (
+        f"Ваша основная группа: <b>{group_name}</b>"
+        if is_student
+        else f"Вы: <b>{teacher_name}</b>"
     )
-    await update.message.edit_text(text=f'Ваша группа: <b>{group_name}</b>',
-                                   reply_markup=KB.settings())
+    await callback.message.edit_text(
+        text=msg_text,
+        reply_markup=KB.settings(is_student),
+    )
 
 
 @main_menu_router.callback_query(F.data == 'schedule_change_view')
@@ -192,8 +203,24 @@ async def handle_change_schedule_view(update: Update, state: FSMContext):
 
 @main_menu_router.callback_query(F.data == 'restart_to_schedule')
 async def handle_restart(callback: CallbackQuery, state: FSMContext):
-    """
-
-    """
     await state.update_data(refresh=True)
     await handle_schedule(callback, state)
+
+
+@main_menu_router.callback_query(F.data == 'reset_all_data')
+async def handle_reset_all_data(callback: CallbackQuery, state: FSMContext):
+    user_id = callback.from_user.id
+    fsm_data = await state.get_data()
+
+    photo_msg_id = fsm_data.get('photo_msg_id')
+    with suppress(Exception):
+        await callback.bot.delete_message(chat_id=user_id, message_id=photo_msg_id)
+
+    await DB.logout(user_id)
+
+    exit_message = await callback.message.edit_text(text='Ваши данные удалены из бота')
+    await asyncio.sleep(2)
+    await exit_message.delete()
+
+    from handlers.users.auth import handle_start_command
+    await handle_start_command(callback, state)

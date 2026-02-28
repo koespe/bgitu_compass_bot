@@ -35,33 +35,33 @@ async def api_get_schedule(group_id: int):
             return {"status": 409}
 
         schedule = await req_lessons.json()
+        return schedule
 
-        """
-        {
-          "first_week": {
-            "MONDAY": [
-              {
-                "subjectId": 1094,
-                "subjectName": "Физкультура и спорт",
-                "building": "1",
-                "startAt": "08:20:00",
-                "endAt": "09:55:00",
-                "classroom": "",
-                "teacher": "",
-                "isLecture": false
-              },
-        """
+
+async def api_get_teacher_schedule(teacher: str):
+    async with aiohttp.ClientSession() as session:
+        req_lessons = await session.get(
+            url=config.api_host + 'teacherSchedule' + f'?teacher={teacher}')
+
+        if req_lessons.status != 200:
+            return {"status": req_lessons.status}
+
+        schedule = await req_lessons.json()
         return schedule
 
 
 async def form_schedule_message(user_id: int, offset: int = 0,
-                                favorite_group_id: Optional[int] = None, favorite_group_name: Optional[str] = None):
+                                favorite_group_id: Optional[int] = None, favorite_group_name: Optional[str] = None,
+                                teacher_name: Optional[str] = None):
     user_data = await DB.user_data(user_id)
     view: str = user_data.get('last_schedule_view')
     message_text = ''
 
-    group_id = user_data.get('group_id') if favorite_group_id is None else favorite_group_id
-    schedule = await api_get_schedule(group_id=group_id)
+    if teacher_name and not favorite_group_id:
+        schedule = await api_get_teacher_schedule(teacher_name)
+    else:
+        group_id = user_data.get('group_id') if favorite_group_id is None else favorite_group_id
+        schedule = await api_get_schedule(group_id=group_id)
 
     # Проверяем на ошибку 409 (группа не найдена)
     if schedule.get("status") == 409:
@@ -95,7 +95,7 @@ async def form_schedule_message(user_id: int, offset: int = 0,
                 end_time = subscripts[0]
                 building = subscripts[1]
                 classroom = lesson["classroom"]
-                teacher = lesson["teacher"]
+                teacher = lesson.get("teacher", lesson.get("groupName"))
                 subject_name = lesson["subjectName"]
 
                 is_lecture_emoji = '\U0001f4d6' if lesson['isLecture'] else '\U0001f52c'
@@ -134,7 +134,7 @@ async def form_schedule_message(user_id: int, offset: int = 0,
             end_time = subscripts[0]
             building = subscripts[1]
             classroom = lesson["classroom"]
-            teacher = lesson["teacher"]
+            teacher = lesson.get("teacher", lesson.get("groupName"))
             subject_name = lesson["subjectName"]
 
             is_lecture_emoji = '\U0001f4d6' if lesson['isLecture'] else '\U0001f52c'
