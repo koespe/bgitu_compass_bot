@@ -9,6 +9,7 @@ class Settings(PydanticSettings):
     redis_uri: RedisDsn
 
     admin_tg_id: int
+    administration_chat_id: int
     api_host: str
 
     class Config:
