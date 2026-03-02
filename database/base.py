@@ -51,7 +51,10 @@ class DB:
     @staticmethod
     async def is_user_authorized(user_id: int) -> bool:
         async with get_session() as session:
-            query = select(1).where(Users.id == user_id)
+            query = select(1).where(
+                Users.id == user_id,
+                (Users.group_id.isnot(None)) | (Users.teacher_name.isnot(None))
+            )
             return (await session.scalar(query)) is not None
 
     @staticmethod
