@@ -43,10 +43,11 @@ async def api_get_teacher_schedule(teacher: str):
         req_lessons = await session.get(
             url=config.api_host + 'teacherSchedule' + f'?teacher={teacher}')
 
-        if req_lessons.status != 200:
-            return {"status": req_lessons.status}
-
         schedule = await req_lessons.json()
+
+        if not any(schedule.get('first_week', {}).values()) and not any(schedule.get('second_week', {}).values()):
+            return {"status": 404}
+
         return schedule
 
 
@@ -65,7 +66,10 @@ async def form_schedule_message(user_id: int, offset: int = 0,
 
     # Проверяем на ошибку 409 (группа не найдена)
     if schedule.get("status") == 409:
-        return "FAV_GROUP_NOT_FOUND_ERROR" if favorite_group_id else "GROUP_NOT_FOUND_ERROR"
+        return "FAV_GROUP_NOT_FOUND" if favorite_group_id else "GROUP_NOT_FOUND"
+    if schedule.get("status") == 404:
+        return "TEACHER_NOT_FOUND"
+
 
     if view == 'weekly':
         cur_week_text = ' текущую' if offset == 0 else ''
