@@ -3,7 +3,7 @@ import datetime
 from contextlib import suppress
 from typing import Union
 
-from aiogram import Router, F
+from aiogram import Router, F, Command
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, CallbackQuery, Update, InputMediaPhoto
@@ -216,20 +216,33 @@ async def handle_restart(callback: CallbackQuery, state: FSMContext):
     await handle_schedule(callback, state)
 
 
-@main_menu_router.callback_query(F.data == 'reset_all_data')
+@main_menu_router.callback_query(F.data == "reset_all_data")
 async def handle_reset_all_data(callback: CallbackQuery, state: FSMContext):
     user_id = callback.from_user.id
     fsm_data = await state.get_data()
 
-    photo_msg_id = fsm_data.get('photo_msg_id')
+    photo_msg_id = fsm_data.get("photo_msg_id")
     with suppress(Exception):
         await callback.bot.delete_message(chat_id=user_id, message_id=photo_msg_id)
 
     await DB.logout(user_id)
 
-    exit_message = await callback.message.edit_text(text='Ваши данные удалены из бота')
+    exit_message = await callback.message.edit_text(text="Ваши данные удалены из бота")
     await asyncio.sleep(2)
     await exit_message.delete()
 
     from handlers.users.auth import handle_start_command
     await handle_start_command(callback, state)
+
+
+@main_menu_router.message(Command("reset"))
+async def handle_reset_command(message: Message, state: FSMContext):
+    user_id = message.from_user.id
+    await DB.logout(user_id)
+
+    exit_message = await message.answer(text="Ваши данные удалены из бота")
+    await asyncio.sleep(2)
+    await exit_message.delete()
+
+    from handlers.users.auth import handle_start_command
+    await handle_start_command(message, state)
