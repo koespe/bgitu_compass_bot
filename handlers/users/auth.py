@@ -184,7 +184,8 @@ async def bind_entity_to_user(callback: CallbackQuery, state: FSMContext):
             teacher_name=entity_name
         )
         await callback.bot.send_message(
-            chat_id=config.admin_tg_id, text=f'Новый преподаватель: {entity_name}, @{callback.from_user.username}'
+            chat_id=config.administration_chat_id,
+            text=f'Новый преподаватель: {entity_name}, @{callback.from_user.username}'
         )
 
     # 4. Чистка интерфейса (удаляем картинку и сообщение с кнопками)
