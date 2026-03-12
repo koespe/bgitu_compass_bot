@@ -3,8 +3,9 @@ import datetime
 from contextlib import suppress
 from typing import Union
 
-from aiogram import Router, F, Command
+from aiogram import Router, F
 from aiogram.exceptions import TelegramBadRequest
+from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, CallbackQuery, Update, InputMediaPhoto
 
