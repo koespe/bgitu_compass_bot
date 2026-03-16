@@ -19,7 +19,7 @@ CACHE_FILE = Path("data") / "groups_cache.json"
 
 async def fetch_groups_info() -> list[dict]:
     async with aiohttp.ClientSession() as session:
-        response = await session.get(config.api_host + "groupsInfo")
+        response = await session.get(config.api_host + "groups")
         if response.status == 200:
             return await response.json()
         return []
