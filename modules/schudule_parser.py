@@ -13,23 +13,27 @@ weekday_ru_loc_long = ['', 'Понедельник', 'Вторник', 'Сред
 month_ru_loc = ['', 'января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября',
                 'ноября', 'декабря']
 
-swap_cache = TTLCache(maxsize=2, ttl=300)  # Кеш API для логики SWAP_WEEKS
+term_start_date_cache = TTLCache(maxsize=2, ttl=600)
+remote_config_cache = TTLCache(maxsize=2, ttl=600)
 
 
-def get_week_range(offset=0):
-    # Используется только для weekly view
-    today = datetime.date.today()
-    start_of_week = today - datetime.timedelta(days=today.isoweekday() - 1)
-    start_of_week += datetime.timedelta(weeks=offset)
-    end_of_week = start_of_week + datetime.timedelta(days=5)
-    week_number = start_of_week.isocalendar().week
-    return [start_of_week, end_of_week, week_number]
+async def get_remote_config() -> dict:
+    if 'data' in remote_config_cache:
+        return remote_config_cache['data']
+
+    async with aiohttp.ClientSession() as session:
+        response = await session.get(config.api_host + 'remoteConfig')
+        if response.status == 200:
+            data = await response.json()
+            remote_config_cache['data'] = data
+            return data
+    return {}
 
 
 async def api_get_schedule(group_id: int):
     async with aiohttp.ClientSession() as session:
         req_lessons = await session.get(
-            url=config.api_host + 'v2/lessons' + f'?groupId={group_id}')
+            url=config.api_host + 'v3/lessons' + f'?groupId={group_id}')
 
         if req_lessons.status == 409:  # Группа отсутсвует
             return {"status": 409}
@@ -40,8 +44,7 @@ async def api_get_schedule(group_id: int):
 
 async def api_get_teacher_schedule(teacher: str):
     async with aiohttp.ClientSession() as session:
-        req_lessons = await session.get(
-            url=config.api_host + 'teacherSchedule' + f'?teacher={teacher}')
+        req_lessons = await session.get(url=config.api_host + 'teacherSchedule' + f'?teacher={teacher}')
 
         schedule = await req_lessons.json()
 
@@ -62,7 +65,7 @@ async def form_schedule_message(user_id: int, offset: int = 0,
         schedule = await api_get_teacher_schedule(teacher_name)
     else:
         group_id = user_data.get('group_id') if favorite_group_id is None else favorite_group_id
-        schedule = await api_get_schedule(group_id=group_id)
+        schedule: dict = await api_get_schedule(group_id=group_id)
 
     # Проверяем на ошибку 409 (группа не найдена)
     if schedule.get("status") == 409:
@@ -70,19 +73,17 @@ async def form_schedule_message(user_id: int, offset: int = 0,
     if schedule.get("status") == 404:
         return "TEACHER_NOT_FOUND"
 
-
     if view == 'weekly':
         cur_week_text = ' текущую' if offset == 0 else ''
         dates = get_week_range(offset)  # [start_of_week, end_of_week, week_number]
         current_date = dates[0]
 
-        week_type_for_string = await get_week_type(dates[1], with_swaps=True)
-        week_number = "1" if week_type_for_string == "first_week" else "2"
-        # Главный header
+        week_type = await get_week_type(dates[1])
+        week_number = "1" if week_type == "first_week" else "2"
+
         date_info = (f'<b>\U0001f5d3\ufe0f Расписание на{cur_week_text} {week_number}ю неделю '
                      f'({dates[0].strftime("%d.%m")} — {dates[1].strftime("%d.%m")})</b>\n\n')
 
-        week_type = await get_week_type(dates[1], with_swaps=False)
         for weekday in range(1, 7):
             # Создаем header для дня недели "СБ | 25 января"
             lesson_date = current_date + datetime.timedelta(days=weekday - 1)  # не порчу индекс weekday для локализации
@@ -116,13 +117,12 @@ async def form_schedule_message(user_id: int, offset: int = 0,
     else:
         date = datetime.date.today() + datetime.timedelta(days=offset)
 
-        week_type_for_string = await get_week_type(date, with_swaps=True)
+        week_type = await get_week_type(date)
         cur_day_text = ' Сегодня |' if offset == 0 else ''
-        week_number = "1" if week_type_for_string == "first_week" else "2"
+        week_number = "1" if week_type == "first_week" else "2"
         date_info = (f'<blockquote><b>{cur_day_text} {date.strftime("%A").capitalize()}</b> | {date.strftime("%d %B")} '
                      f'| {week_number}я неделя</blockquote>\n\n')
 
-        week_type = await get_week_type(date, with_swaps=False)
         lessons_data: list = schedule.get(week_type).get(weekday_en_loc[date.weekday() + 1])
         if not lessons_data:
             message_text = ''
@@ -157,34 +157,58 @@ async def form_schedule_message(user_id: int, offset: int = 0,
     return message_text
 
 
-async def get_week_type(current_date: datetime.date, with_swaps: bool) -> str:
-    """
-    Надо использовать SWAP_WEEKS для обозначения недели в UI
-    Но для формирования расписания использовать алгоритм без логики SWAP_WEEKS
-    """
-    swap_weeks_flag = False
+async def get_week_type(current_date: datetime.date) -> str:
+    if 'flag' in term_start_date_cache:
+        term_start_date = term_start_date_cache['flag']
+    else:
+        remote_config = await get_remote_config()
+        term_start_date_str = remote_config.get('termStartDate', f"{datetime.date.today().year}-09-01")
+        term_start_date = datetime.datetime.strptime(term_start_date_str, "%Y-%m-%d").date()
+        term_start_date_cache['flag'] = term_start_date
 
-    if with_swaps:
-        if 'flag' in swap_cache:
-            swap_weeks_flag = swap_cache['flag']
+    week_num = ((current_date - term_start_date).days // 7) + 1
+    return "second_week" if week_num % 2 == 0 else "first_week"
+
+
+async def is_teacher_warning_date() -> bool:
+    """
+    Проверяет, попадает ли текущая дата в диапазоны предупреждения о преподавателях.
+    Формат дат в API: mm-dd (например, ["12-08","02-07"] для 8 декабря — 7 февраля).
+    """
+    current_date = datetime.date.today()
+
+    remote_config = await get_remote_config()
+    date_ranges = remote_config.get('teacherSearchWarningDateRanges', [])
+    if not date_ranges:
+        return False
+
+    for start_str, end_str in date_ranges:
+        start_month, start_day = map(int, start_str.split('-'))
+        end_month, end_day = map(int, end_str.split('-'))
+
+        start_date = datetime.date(current_date.year, start_month, start_day)
+        end_date = datetime.date(current_date.year, end_month, end_day)
+
+        # Обработка перехода через год (например, декабрь-январь)
+        if start_date > end_date:
+            # Диапазон пересекает границу года
+            if current_date >= start_date or current_date <= end_date:
+                return True
         else:
-            async with aiohttp.ClientSession() as session:
-                response = await session.get(config.api_host + 'remoteConfig')
-                if response.status == 200:
-                    data = await response.json()
-                    swap_weeks_flag = data.get('swapWeeks')
-            swap_cache['flag'] = swap_weeks_flag
+            if start_date <= current_date <= end_date:
+                return True
 
-    start_year = current_date.year - 1 if current_date.month < 9 else current_date.year
-    start_date = datetime.date(start_year, 9, 1)
+    return False
 
-    if start_date.isoweekday() == 7:
-        start_date += datetime.timedelta(days=1)
 
-    week_num = ((current_date - start_date).days // 7) + 1
-
-    is_second = (week_num % 2 == 0) != swap_weeks_flag
-    return "second_week" if is_second else "first_week"
+def get_week_range(offset=0):
+    # Используется только для weekly view
+    today = datetime.date.today()
+    start_of_week = today - datetime.timedelta(days=today.isoweekday() - 1)
+    start_of_week += datetime.timedelta(weeks=offset)
+    end_of_week = start_of_week + datetime.timedelta(days=5)
+    week_number = start_of_week.isocalendar().week
+    return [start_of_week, end_of_week, week_number]
 
 
 # Текст верхнего регистра
