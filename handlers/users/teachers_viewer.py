@@ -9,10 +9,12 @@ from aiogram.types import Message, CallbackQuery, InputMediaPhoto
 
 from config_reader import config, graphics_id
 from keyboards import KB
-from modules.schudule_parser import month_ru_loc, weekday_ru_loc, form_superscript
+from modules.schudule_parser import month_ru_loc, weekday_ru_loc, form_superscript, is_teacher_warning_date
 from states import TeacherViewer
 
 teachers_router = Router()
+TEACHER_SEARCH_WARNING_TEXT = ("\u26a0\ufe0f <b>Данные могут быть неверными вследствии проведения сессии!\n"
+                               "\u26a0\ufe0f Уточняйте информацию у преподавателя</b>\n\n")
 
 
 @teachers_router.callback_query(F.data == 'teachers')
@@ -21,8 +23,10 @@ async def handle_teachers_button(callback: CallbackQuery, state: FSMContext):
     fsm_data = await state.get_data()
 
     msg_text = (
+        f'{TEACHER_SEARCH_WARNING_TEXT if await is_teacher_warning_date() else ""}'
         'Узнайте в какие дни и где можно найти преподавателя\n\n'
-        '<i>\u26a0\ufe0f Это <u>не расписание пересдач</u> и отработок — такую информацию уточняйте лично или на стендах кафедры</i>\n\n'
+        '<i>\u26a0\ufe0f Это <u>не расписание пересдач</u> и отработок '
+        '— такую информацию уточняйте лично или на стендах кафедры</i>\n\n'
         '\U0001f447 Введите <u>фамилию</u> преподавателя'
     )
 
@@ -88,7 +92,8 @@ async def handle_teacher_schedule(callback: CallbackQuery, state: FSMContext):
             url=config.api_host + f'teacherSchedule?teacher={teacher}&teacherSearch=true'
         )
         search_resp: list = await search_req.json()
-    message_text = f'<blockquote>Расписание преподавателя <u>{teacher}</u></blockquote>\n'
+    message_text = f'{TEACHER_SEARCH_WARNING_TEXT if await is_teacher_warning_date() else ""}' \
+                   '<blockquote>Расписание преподавателя <u>{teacher}</u></blockquote>\n'
     last_weekday = ''
     for work_day in search_resp:
         lesson_date = f'{int(work_day["lessonDate"][8:])}' + ' ' + f'{month_ru_loc[int(work_day["lessonDate"][5:-3])]}'
