@@ -92,7 +92,7 @@ async def handle_teacher_schedule(callback: CallbackQuery, state: FSMContext):
         )
         search_resp: list = await search_req.json()
     message_text = f'{TEACHER_SEARCH_WARNING_TEXT if await is_teacher_warning_date() else ""}' \
-                   '<blockquote>Расписание преподавателя <u>{teacher}</u></blockquote>\n'
+                   f'<blockquote>Расписание преподавателя <u>{teacher}</u></blockquote>\n'
     last_weekday = ''
     for work_day in search_resp:
         lesson_date = f'{int(work_day["lessonDate"][8:])}' + ' ' + f'{month_ru_loc[int(work_day["lessonDate"][5:-3])]}'
