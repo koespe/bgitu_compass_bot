@@ -13,8 +13,8 @@ from modules.schudule_parser import month_ru_loc, weekday_ru_loc, form_superscri
 from states import TeacherViewer
 
 teachers_router = Router()
-TEACHER_SEARCH_WARNING_TEXT = ("\u26a0\ufe0f <b>Данные могут быть неверными вследствии проведения сессии!\n"
-                               "\u26a0\ufe0f Уточняйте информацию у преподавателя</b>\n\n")
+TEACHER_SEARCH_WARNING_TEXT = ("\u203c\ufe0f <b>Данные могут быть неверными вследствии проведения сессии! "
+                               "Уточняйте информацию у преподавателя</b>\n\n")
 
 
 @teachers_router.callback_query(F.data == 'teachers')
