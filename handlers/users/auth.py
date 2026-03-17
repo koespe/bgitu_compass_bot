@@ -10,7 +10,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, CallbackQuery, Update, InputMediaPhoto
 from aiogram.utils.markdown import hlink
 
-from config_reader import config, graphics_id
+from config_reader import config, graphics
 from database.base import DB
 from handlers.users.favorite_groups import favorite_groups_menu
 from handlers.users.main_menu import handle_schedule
@@ -35,7 +35,7 @@ async def handle_start_command(update: Union[Message, CallbackQuery, Update], st
 
     # Обработка нужна потому что функция может быть вызвана если не нашлась группа (GROUP_NOT_FOUND_ERROR)
     if isinstance(update, Message):
-        photo_msg = await update.answer_photo(photo=graphics_id['start_menu'])
+        photo_msg = await update.answer_photo(photo=graphics.start_menu)
         await state.update_data(photo_msg_id=photo_msg.message_id)
         await update.answer(text=welcome_text, reply_markup=KB.start_menu())
     else:
@@ -46,11 +46,11 @@ async def handle_start_command(update: Union[Message, CallbackQuery, Update], st
                 await update.bot.edit_message_media(
                     chat_id=update.from_user.id,
                     message_id=fsm_data.get('photo_msg_id'),
-                    media=InputMediaPhoto(media=graphics_id['start_menu']),
+                    media=InputMediaPhoto(media=graphics.start_menu),
                 )
             await update.message.edit_text(text=welcome_text, reply_markup=KB.start_menu())
         else:  # Был сброс данных через кнопку в настройках
-            photo_msg = await update.message.answer_photo(photo=graphics_id['start_menu'])
+            photo_msg = await update.message.answer_photo(photo=graphics.start_menu)
             await state.update_data(photo_msg_id=photo_msg.message_id)
             await update.message.answer(text=welcome_text, reply_markup=KB.start_menu())
 
@@ -89,7 +89,7 @@ async def handle_search_setup(callback: CallbackQuery, state: FSMContext):
         await callback.bot.edit_message_media(
             chat_id=callback.from_user.id,
             message_id=data.get('photo_msg_id'),
-            media=InputMediaPhoto(media=graphics_id[img_key]),
+            media=InputMediaPhoto(media=getattr(graphics, img_key)),
         )
 
     msg = await callback.message.edit_text(text=text, reply_markup=cancel_keyboard)

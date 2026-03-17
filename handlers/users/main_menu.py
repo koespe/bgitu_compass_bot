@@ -9,7 +9,7 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, CallbackQuery, Update, InputMediaPhoto
 
-from config_reader import graphics_id
+from config_reader import graphics
 from database.base import DB
 from keyboards import KB
 from modules.schudule_parser import form_schedule_message
@@ -58,7 +58,7 @@ async def handle_schedule(update: Union[Update, CallbackQuery, Message], state: 
     favorite_group_id = fsm_data.get('favorite_group_id')
     favorite_group_name = fsm_data.get('favorite_group_name')
     is_favorite = True if favorite_group_id else False
-    graphics = graphics_id['favorites_schedule'] if is_favorite else graphics_id['schedule']
+    graphics_media = graphics.favorites_schedule if is_favorite else graphics.schedule
 
     is_holiday_skipped = False
     for _ in range(offset, offset + 7):
@@ -117,10 +117,11 @@ async def handle_schedule(update: Union[Update, CallbackQuery, Message], state: 
     kb = await KB.schedule(user_id, offset, is_favorite)
 
     if isinstance(update, Message) or (isinstance(update, CallbackQuery) and fsm_data.get('refresh')):
-        photo_msg = await update.bot.send_photo(
-            chat_id=user_id,
-            photo=graphics
-        )
+        with suppress(TelegramBadRequest):
+            photo_msg = await update.bot.send_photo(
+                chat_id=user_id,
+                photo=graphics_media
+            )
         await update.bot.send_message(
             chat_id=user_id,
             text=msg_text,
@@ -132,7 +133,7 @@ async def handle_schedule(update: Union[Update, CallbackQuery, Message], state: 
             await update.bot.edit_message_media(
                 chat_id=user_id,
                 message_id=fsm_data.get('photo_msg_id'),
-                media=InputMediaPhoto(media=graphics)
+                media=InputMediaPhoto(media=graphics_media)
             )
 
         await update.bot.edit_message_text(
@@ -184,12 +185,12 @@ async def settings(callback: CallbackQuery, state: FSMContext):
 
     is_student = bool(group_name)
 
-    graphics = InputMediaPhoto(media=graphics_id["settings"])
+    graphics_media = InputMediaPhoto(media=graphics.settings)
     with suppress(TelegramBadRequest):
         await callback.bot.edit_message_media(
             chat_id=user_id,
             message_id=fsm_data["photo_msg_id"],
-            media=graphics,
+            media=graphics_media,
         )
 
     msg_text = (

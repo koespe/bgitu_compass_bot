@@ -42,6 +42,12 @@
    cp .env.example .env
    ```
 
+4. Создать `images.ini` файл на основе `images.ini.example` и заполнить его file_id, прислав фотографии в диалог с
+   ботом:
+   ```bash
+   cp images.ini.example images.ini
+   ```
+
 ## Запуск
 
 ```bash

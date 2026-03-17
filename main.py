@@ -7,9 +7,10 @@ from datetime import datetime
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.utils.callback_answer import CallbackAnswerMiddleware
+from apscheduler.jobstores.memory import MemoryJobStore
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-from config_reader import config, sessionmaker
+from config_reader import config, sessionmaker, graphics
 from database.models import db_init
 from handlers.errors import errors_handler_router
 from handlers.managment.panel import admin_panel_router
@@ -19,21 +20,25 @@ from handlers.users.favorite_groups import favorite_groups_router
 from handlers.users.main_menu import main_menu_router
 from handlers.users.teachers_viewer import teachers_router
 from middlewares.db import DbSessionMiddleware
+from middlewares.lockdown import LockdownMiddleware
 from middlewares.throttling import ThrottlingMiddleware
+from modules.annual_reset import enable_bot_lockdown, check_new_groups_and_disable_lockdown
 from modules.groups_cache import check_groups_changes_and_notify
 
 
 async def main():
     await db_init()
 
+    bot = Bot(config.bot_token.get_secret_value(), parse_mode="HTML")
+    await graphics.validate(bot)
+
     # fsm_storage = RedisStorage.from_url(str(config.redis_uri))
     fsm_storage = MemoryStorage()
-
-    bot = Bot(config.bot_token.get_secret_value(), parse_mode="HTML")
-
     dp = Dispatcher(storage=fsm_storage)
-    dp.update.middleware(DbSessionMiddleware(session_pool=sessionmaker))
 
+    dp.update.middleware(DbSessionMiddleware(session_pool=sessionmaker))
+    dp.message.middleware(LockdownMiddleware())
+    dp.callback_query.middleware(LockdownMiddleware())
     dp.callback_query.middleware(CallbackAnswerMiddleware())  # Auto reply to all callbacks
     dp.message.middleware(ThrottlingMiddleware())
     # dp.callback_query.middleware(ThrottlingMiddleware())
@@ -59,7 +64,9 @@ async def main():
     else:
         locale.setlocale(locale.LC_TIME, 'ru_RU.utf8')
 
-    scheduler = AsyncIOScheduler()
+    # jobstores = {'default': RedisJobStore(db=1)}
+    jobstores = {'default': MemoryJobStore()}
+    scheduler = AsyncIOScheduler(jobstores=jobstores)
     scheduler.add_job(
         check_groups_changes_and_notify,
         trigger="interval",
@@ -67,6 +74,24 @@ async def main():
         next_run_time=datetime.now(),
         args=[bot],
         id="groups_update_check"
+    )
+    scheduler.add_job(
+        enable_bot_lockdown,
+        trigger="cron",
+        month=7,
+        day=15,
+        hour=0,
+        minute=0,
+        id="annual_lockdown",
+        misfire_grace_time=604800)  # 7 дней
+    scheduler.add_job(
+        check_new_groups_and_disable_lockdown,
+        trigger="interval",
+        minutes=30,
+        next_run_time=datetime.now(),
+        args=[bot],
+        id="lockdown_check",
+        misfire_grace_time=259200
     )
     scheduler.start()
 

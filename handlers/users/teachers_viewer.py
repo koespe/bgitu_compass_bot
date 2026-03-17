@@ -7,7 +7,7 @@ from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, CallbackQuery, InputMediaPhoto
 
-from config_reader import config, graphics_id
+from config_reader import config, graphics
 from keyboards import KB
 from modules.schudule_parser import month_ru_loc, weekday_ru_loc, form_superscript, is_teacher_warning_date
 from states import TeacherViewer
@@ -30,10 +30,10 @@ async def handle_teachers_button(callback: CallbackQuery, state: FSMContext):
         '\U0001f447 Введите <u>фамилию</u> преподавателя'
     )
 
-    graphics = InputMediaPhoto(media=graphics_id['teachers_search'])
+    graphics_media = InputMediaPhoto(media=graphics.teachers_search)
     with suppress(TelegramBadRequest):
         await callback.bot.edit_message_media(
-            chat_id=callback.from_user.id, message_id=fsm_data.get('photo_msg_id'), media=graphics
+            chat_id=callback.from_user.id, message_id=fsm_data.get('photo_msg_id'), media=graphics_media
         )
 
     bot_msg = await callback.message.edit_text(text=msg_text, reply_markup=KB.back_to_schedule())
@@ -116,10 +116,10 @@ async def handle_teacher_schedule(callback: CallbackQuery, state: FSMContext):
         )
 
     fsm_data = await state.get_data()
-    graphics = InputMediaPhoto(media=graphics_id['teachers_schedule'])
+    graphics_media = InputMediaPhoto(media=graphics.teachers_schedule)
     with suppress(TelegramBadRequest):
         await callback.bot.edit_message_media(
-            chat_id=callback.from_user.id, message_id=fsm_data.get('photo_msg_id'), media=graphics
+            chat_id=callback.from_user.id, message_id=fsm_data.get('photo_msg_id'), media=graphics_media
         )
 
     await callback.message.edit_text(text=message_text, reply_markup=KB.back_to_schedule())

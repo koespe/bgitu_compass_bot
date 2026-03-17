@@ -7,7 +7,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InputMediaPhoto
 
 import states
-from config_reader import graphics_id, config
+from config_reader import graphics, config
 from database.base import DB
 from handlers.users.main_menu import handle_schedule
 from keyboards import KB
@@ -25,7 +25,7 @@ async def favorite_groups_menu(callback: CallbackQuery, state: FSMContext):
         await callback.bot.edit_message_media(
             chat_id=callback.from_user.id,
             message_id=fsm_data.get('photo_msg_id'),
-            media=InputMediaPhoto(media=graphics_id['favorites_main_menu'])
+            media=InputMediaPhoto(media=graphics.favorites_main_menu)
         )
 
     is_deleting = True if callback.data == 'favorite_group_delete_button' else False
@@ -42,13 +42,12 @@ async def favorite_groups_menu(callback: CallbackQuery, state: FSMContext):
 
 @favorite_groups_router.callback_query(F.data == 'favorite_group_search')
 async def favorite_group_search(callback: CallbackQuery, state: FSMContext):
-    # Вызываем обычную функцию выбора группы, но прокидываем еще флаг
     fsm_data = await state.get_data()
     with suppress(TelegramBadRequest):
         await callback.bot.edit_message_media(
             chat_id=callback.from_user.id,
             message_id=fsm_data.get('photo_msg_id'),
-            media=InputMediaPhoto(media=graphics_id['favorites_search'])
+            media=InputMediaPhoto(media=graphics.favorites_search)
         )
 
     await state.update_data(favorites_request=True)

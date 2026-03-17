@@ -1,0 +1,17 @@
+[main_menu]
+start_menu = 
+group_search = 
+
+[schedule]
+schedule = 
+settings = 
+notifications = 
+
+[teachers]
+teachers_search = 
+teachers_schedule = 
+
+[favorites]
+favorites_main_menu = 
+favorites_search = 
+favorites_schedule = 
