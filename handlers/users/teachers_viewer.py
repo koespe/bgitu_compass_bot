@@ -79,7 +79,6 @@ async def handle_surname(message: Message, state: FSMContext):
 
 @teachers_router.callback_query(F.data.startswith('select_teacher'))
 async def handle_teacher_schedule(callback: CallbackQuery, state: FSMContext):
-    print(callback.data)
     teacher_idx = int(callback.data.split('=')[1])
 
     fsm_data = await state.get_data()
