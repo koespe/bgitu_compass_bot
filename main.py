@@ -91,7 +91,6 @@ async def main():
         next_run_time=datetime.now(),
         args=[bot],
         id="lockdown_check",
-        misfire_grace_time=259200
     )
     scheduler.start()
 
