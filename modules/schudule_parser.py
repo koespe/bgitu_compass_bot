@@ -139,8 +139,7 @@ async def form_schedule_message(user_id: int, offset: int = 0,
 
         lessons_data: list = schedule.get(week_type).get(weekday_en_loc[date.weekday() + 1])
         if not lessons_data:
-            message_text = ''
-            return message_text
+            return '', teachers_dict
 
         str_lessons_data = ''
         for lesson in lessons_data:  # Идем по парам на день
@@ -152,14 +151,15 @@ async def form_schedule_message(user_id: int, offset: int = 0,
             end_time = subscripts[0]
             building = subscripts[1]
             classroom = lesson["classroom"]
-            teacher = lesson.get("teacher", lesson.get("groupName"))
+            teacher = lesson.get("teacher")
+            full_teacher_name = lesson.get("teacherFullName")
             subject_name = lesson["subjectName"]
 
             is_lecture_emoji = '\U0001f4d6' if lesson['isLecture'] else '\U0001f52c'
             classroom_data = f'{classroom}{building}' if building != 'ДОТ' else 'ДОТ'
             if teacher and bot_username:
                 teacher_link = hlink(teacher, f"tg://resolve?domain={bot_username}&start=teacher_{teacher_id_counter}")
-                teachers_dict[teacher_id_counter] = teacher
+                teachers_dict[teacher_id_counter] = full_teacher_name
                 teacher_id_counter += 1
                 teacher = teacher_link
             elif teacher:

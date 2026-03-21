@@ -63,9 +63,9 @@ async def handle_schedule(update: Union[Update, CallbackQuery, Message], state: 
     is_holiday_skipped = False
     for _ in range(offset, offset + 7):
         msg_text, teachers_dict = await form_schedule_message(user_id=user_id,
-                                               offset=offset,
-                                               favorite_group_id=favorite_group_id,
-                                               favorite_group_name=favorite_group_name,
+                                                              offset=offset,
+                                                              favorite_group_id=favorite_group_id,
+                                                              favorite_group_name=favorite_group_name,
                                                               teacher_name=teacher_name,
                                                               bot_username=(await update.bot.me()).username)
 
