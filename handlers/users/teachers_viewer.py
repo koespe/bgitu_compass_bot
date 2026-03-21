@@ -1,4 +1,5 @@
 from contextlib import suppress
+from typing import Optional
 
 import aiohttp
 from aiogram import Router, F
@@ -78,13 +79,18 @@ async def handle_surname(message: Message, state: FSMContext):
 
 
 @teachers_router.callback_query(F.data.startswith('select_teacher'))
-async def handle_teacher_schedule(callback: CallbackQuery, state: FSMContext):
-    teacher_idx = int(callback.data.split('=')[1])
-
+async def handle_teacher_schedule(callback: CallbackQuery, state: FSMContext, teacher_name: Optional[str] = None):
     fsm_data = await state.get_data()
-    teachers_list = fsm_data.get('teachers_list', [])
+    user_id = callback.from_user.id
 
-    teacher = teachers_list[teacher_idx]
+    if teacher_name:
+        teachers_list = [teacher_name]
+        teacher = teacher_name
+        await state.update_data(teachers_list=teachers_list)
+    else:
+        teacher_idx = int(callback.data.split('=')[1])
+        teachers_list = fsm_data.get('teachers_list', [])
+        teacher = teachers_list[teacher_idx]
 
     async with aiohttp.ClientSession() as web_session:
         search_req = await web_session.get(
@@ -115,11 +121,19 @@ async def handle_teacher_schedule(callback: CallbackQuery, state: FSMContext):
             f"{msg_date_str}" f"[{is_lecture_emoji}] {work_day['startAt'][:-3]}{formed_end_time} | {classroom_data}\n"
         )
 
-    fsm_data = await state.get_data()
     graphics_media = InputMediaPhoto(media=graphics.teachers_schedule)
+    photo_msg_id = fsm_data.get('photo_msg_id')
+    bot_msg_id = fsm_data.get('bot_msg_id')
+    
     with suppress(TelegramBadRequest):
-        await callback.bot.edit_message_media(
-            chat_id=callback.from_user.id, message_id=fsm_data.get('photo_msg_id'), media=graphics_media
+        if photo_msg_id:
+            await callback.bot.edit_message_media(
+                chat_id=user_id, message_id=photo_msg_id, media=graphics_media
+            )
+    if bot_msg_id:
+        await callback.bot.edit_message_text(
+            chat_id=user_id,
+            message_id=bot_msg_id,
+            text=message_text,
+            reply_markup=KB.back_to_schedule()
         )
-
-    await callback.message.edit_text(text=message_text, reply_markup=KB.back_to_schedule())

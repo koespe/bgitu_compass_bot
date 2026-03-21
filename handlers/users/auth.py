@@ -15,13 +15,46 @@ from database.base import DB
 from handlers.users.favorite_groups import favorite_groups_menu
 from handlers.users.main_menu import handle_schedule
 from keyboards import KB
-from states import AuthState, SupportWordsState
+from states import AuthState, SupportWordsState, TeacherViewer
 
 auth_router = Router()
 
 
 @auth_router.message(CommandStart())
 async def handle_start_command(update: Union[Message, CallbackQuery, Update], state: FSMContext):
+    # Обработка deep link для преподавателя: /start?start=teacher_{id}
+    if isinstance(update, Message) and update.text.startswith('/start teacher_'):
+        teacher_id = int(update.text.split(' ', 1)[1].replace('teacher_', ''))
+        await update.delete()  # Удаляем сообщение пользователя с /start
+
+        # Получаем teachers_dict и message_id из FSM
+        fsm_data = await state.get_data()
+        teachers_dict = fsm_data.get('teachers_dict', {})
+        photo_msg_id = fsm_data.get('photo_msg_id')
+        bot_msg_id = fsm_data.get('bot_msg_id')
+
+        # Получаем полное имя преподавателя из FSM
+        teacher_full_name = teachers_dict.get(teacher_id)
+        if not teacher_full_name:
+            await update.answer("Преподаватель не найден", show_alert=True)
+            return
+
+        # Инициализируем FSM для просмотра преподавателя
+        await state.set_state(TeacherViewer.requesting_surname)
+        await state.update_data(teachers_list=[teacher_full_name])
+
+        # Вызываем обработчик расписания преподавателя
+        from handlers.users.teachers_viewer import handle_teacher_schedule
+        # Создаем фейковый callback для совместимости
+        class FakeCallback:
+            from_user = update.from_user
+            message = update
+            bot = update.bot
+            data = 'select_teacher=0'
+
+        await handle_teacher_schedule(FakeCallback(), state, teacher_name=teacher_full_name)
+        return
+
     await state.clear()
 
     if await DB.is_user_authorized(update.from_user.id):
