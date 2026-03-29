@@ -14,16 +14,36 @@ from config_reader import config, graphics
 from database.base import DB
 from handlers.users.favorite_groups import favorite_groups_menu
 from handlers.users.main_menu import handle_schedule
+from handlers.users.teachers_viewer import handle_teacher_schedule
 from keyboards import KB
-from states import AuthState, SupportWordsState
+from states import AuthState, SupportWordsState, TeacherViewer
 
 auth_router = Router()
 
 
 @auth_router.message(CommandStart())
 async def handle_start_command(update: Union[Message, CallbackQuery, Update], state: FSMContext):
-    await state.clear()
+    if isinstance(update, Message) and update.text.startswith('/start teacher_'):
+        teacher_id = int(update.text.split(' ', 1)[1].replace('teacher_', ''))
+        await update.delete()
 
+        fsm_data = await state.get_data()
+        teachers_dict = fsm_data.get('teachers_dict', {})
+
+        teacher_full_name = teachers_dict.get(teacher_id)
+        if not teacher_full_name:
+            await update.answer("Преподаватель не найден")
+            return
+
+        await state.set_state(TeacherViewer.requesting_surname)
+        await state.update_data(teachers_list=[teacher_full_name])
+
+        update: CallbackQuery  # Не очень, но функция отработает
+        await handle_teacher_schedule(update, state, teacher_name=teacher_full_name)
+        return
+
+    # Обычный /start
+    await state.clear()
     if await DB.is_user_authorized(update.from_user.id):
         await handle_schedule(update, state)
         return
@@ -33,23 +53,24 @@ async def handle_start_command(update: Union[Message, CallbackQuery, Update], st
         '\u26a1 Удобное <b>приложение для Android</b> → bgitu-compass.ru'
     )
 
-    # Обработка нужна потому что функция может быть вызвана если не нашлась группа (GROUP_NOT_FOUND_ERROR)
+    # Нажатие /start новым пользователем
     if isinstance(update, Message):
         photo_msg = await update.answer_photo(photo=graphics.start_menu)
         await state.update_data(photo_msg_id=photo_msg.message_id)
+
         await update.answer(text=welcome_text, reply_markup=KB.start_menu())
-    else:
+    else:  # Сброс при GROUP_NOT_FOUND_ERROR
         fsm_data = await state.get_data()
         photo_msg_id = fsm_data.get('photo_msg_id')
         if photo_msg_id:
             with suppress(TelegramBadRequest):
                 await update.bot.edit_message_media(
                     chat_id=update.from_user.id,
-                    message_id=fsm_data.get('photo_msg_id'),
+                    message_id=photo_msg_id,
                     media=InputMediaPhoto(media=graphics.start_menu),
                 )
             await update.message.edit_text(text=welcome_text, reply_markup=KB.start_menu())
-        else:  # Был сброс данных через кнопку в настройках
+        else:  # Сброс данных через кнопку в настройках
             photo_msg = await update.message.answer_photo(photo=graphics.start_menu)
             await state.update_data(photo_msg_id=photo_msg.message_id)
             await update.message.answer(text=welcome_text, reply_markup=KB.start_menu())
@@ -156,6 +177,7 @@ async def bind_entity_to_user(callback: CallbackQuery, state: FSMContext):
         parts = callback.data.split('_')
         group_id, entity_name = int(parts[2]), parts[3]
     else:
+        group_id = 0
         # Получаем имя преподавателя из state по индексу
         teacher_idx = int(callback.data.split('=')[1])
         teachers_list = fsm_data.get('teachers_list', [])

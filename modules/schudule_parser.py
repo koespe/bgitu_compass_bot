@@ -2,6 +2,7 @@ import datetime
 from typing import Optional
 
 import aiohttp
+from aiogram.utils.markdown import hlink
 from cachetools import TTLCache
 
 from config_reader import config
@@ -54,12 +55,17 @@ async def api_get_teacher_schedule(teacher: str):
         return schedule
 
 
-async def form_schedule_message(user_id: int, offset: int = 0,
-                                favorite_group_id: Optional[int] = None, favorite_group_name: Optional[str] = None,
-                                teacher_name: Optional[str] = None):
+async def form_schedule_message(user_id: int,
+                                offset: int = 0,
+                                favorite_group_id: Optional[int] = None,
+                                favorite_group_name: Optional[str] = None,
+                                teacher_name: Optional[str] = None,
+                                bot_username: Optional[str] = None) -> tuple[str, dict]:
     user_data = await DB.user_data(user_id)
     view: str = user_data.get('last_schedule_view')
     message_text = ''
+    teachers_dict = {}  # {teacher_id: teacherFullName}
+    teacher_id_counter = 0
 
     if teacher_name and not favorite_group_id:
         schedule = await api_get_teacher_schedule(teacher_name)
@@ -69,9 +75,9 @@ async def form_schedule_message(user_id: int, offset: int = 0,
 
     # Проверяем на ошибку 409 (группа не найдена)
     if schedule.get("status") == 409:
-        return "FAV_GROUP_NOT_FOUND" if favorite_group_id else "GROUP_NOT_FOUND"
+        return "FAV_GROUP_NOT_FOUND" if favorite_group_id else "GROUP_NOT_FOUND", {}
     if schedule.get("status") == 404:
-        return "TEACHER_NOT_FOUND"
+        return "TEACHER_NOT_FOUND", {}
 
     if view == 'weekly':
         cur_week_text = ' текущую' if offset == 0 else ''
@@ -100,12 +106,22 @@ async def form_schedule_message(user_id: int, offset: int = 0,
                 end_time = subscripts[0]
                 building = subscripts[1]
                 classroom = lesson["classroom"]
-                teacher = lesson.get("teacher", lesson.get("groupName"))
+                teacher = lesson.get("teacher")
+                full_teacher_name = lesson.get("teacherFullName")
                 subject_name = lesson["subjectName"]
 
                 is_lecture_emoji = '\U0001f4d6' if lesson['isLecture'] else '\U0001f52c'
                 classroom_data = f'{classroom}{building}' if building != 'ДОТ' else 'ДОТ'
-                teacher = f'({teacher})' if teacher else ''
+                if teacher and bot_username:
+                    teacher_link = hlink(teacher,
+                                         f"tg://resolve?domain={bot_username}&start=teacher_{teacher_id_counter}")
+                    teachers_dict[teacher_id_counter] = full_teacher_name
+                    teacher_id_counter += 1
+                    teacher = teacher_link
+                elif teacher:
+                    teacher = f'({teacher})'
+                else:
+                    teacher = ''
 
                 str_lessons_data += (f"[{is_lecture_emoji}] {start_time}{end_time} | {classroom_data}\n"
                                      f"<b>{subject_name}</b> {teacher}\n")
@@ -125,8 +141,7 @@ async def form_schedule_message(user_id: int, offset: int = 0,
 
         lessons_data: list = schedule.get(week_type).get(weekday_en_loc[date.weekday() + 1])
         if not lessons_data:
-            message_text = ''
-            return message_text
+            return '', teachers_dict
 
         str_lessons_data = ''
         for lesson in lessons_data:  # Идем по парам на день
@@ -138,12 +153,22 @@ async def form_schedule_message(user_id: int, offset: int = 0,
             end_time = subscripts[0]
             building = subscripts[1]
             classroom = lesson["classroom"]
-            teacher = lesson.get("teacher", lesson.get("groupName"))
+            teacher = lesson.get("teacher")
+            full_teacher_name = lesson.get("teacherFullName")
             subject_name = lesson["subjectName"]
 
             is_lecture_emoji = '\U0001f4d6' if lesson['isLecture'] else '\U0001f52c'
             classroom_data = f'{classroom}{building}' if building != 'ДОТ' else 'ДОТ'
-            teacher = f'({teacher})' if teacher else ''
+            if teacher and bot_username:
+                teacher_link = hlink(teacher,
+                                     f"tg://resolve?domain={bot_username}&start=teacher_{teacher_id_counter}")
+                teachers_dict[teacher_id_counter] = full_teacher_name
+                teacher_id_counter += 1
+                teacher = teacher_link
+            elif teacher:
+                teacher = f'({teacher})'
+            else:
+                teacher = ''
 
             str_lessons_data += (f"[{is_lecture_emoji}] {start_time}{end_time} | {classroom_data}\n"
                                  f"<b>{subject_name}</b> {teacher}\n")
@@ -154,7 +179,7 @@ async def form_schedule_message(user_id: int, offset: int = 0,
         message_text = (f'<blockquote>\u26a0\ufe0f <b>Вы просматриваете группу</b> '
                         f'<u>{favorite_group_name}</u></blockquote>\n') + message_text
 
-    return message_text
+    return message_text, teachers_dict
 
 
 async def get_week_type(current_date: datetime.date) -> str:
