@@ -83,7 +83,7 @@ async def handle_teacher_schedule(callback: CallbackQuery, state: FSMContext, te
     fsm_data = await state.get_data()
     user_id = callback.from_user.id
 
-    if teacher_name:
+    if teacher_name:  # По нажатию из расписания
         teachers_list = [teacher_name]
         teacher = teacher_name
         await state.update_data(teachers_list=teachers_list)
@@ -122,18 +122,19 @@ async def handle_teacher_schedule(callback: CallbackQuery, state: FSMContext, te
         )
 
     graphics_media = InputMediaPhoto(media=graphics.teachers_schedule)
+
+    # Обработка нажатия фамилии из расписания
     photo_msg_id = fsm_data.get('photo_msg_id')
-    bot_msg_id = fsm_data.get('bot_msg_id')
-    
     with suppress(TelegramBadRequest):
-        if photo_msg_id:
-            await callback.bot.edit_message_media(
-                chat_id=user_id, message_id=photo_msg_id, media=graphics_media
-            )
-    if bot_msg_id:
-        await callback.bot.edit_message_text(
+        await callback.bot.edit_message_media(
             chat_id=user_id,
-            message_id=bot_msg_id,
-            text=message_text,
-            reply_markup=KB.back_to_schedule()
+            message_id=photo_msg_id,
+            media=graphics_media
         )
+    bot_msg_id = fsm_data.get('bot_msg_id')
+    await callback.bot.edit_message_text(
+        chat_id=user_id,
+        message_id=bot_msg_id,
+        text=message_text,
+        reply_markup=KB.back_to_schedule()
+    )

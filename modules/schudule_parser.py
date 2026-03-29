@@ -55,10 +55,12 @@ async def api_get_teacher_schedule(teacher: str):
         return schedule
 
 
-async def form_schedule_message(user_id: int, offset: int = 0,
-                                favorite_group_id: Optional[int] = None, favorite_group_name: Optional[str] = None,
-                                teacher_name: Optional[str] = None, bot_username: Optional[str] = None) -> tuple[
-    str, dict]:
+async def form_schedule_message(user_id: int,
+                                offset: int = 0,
+                                favorite_group_id: Optional[int] = None,
+                                favorite_group_name: Optional[str] = None,
+                                teacher_name: Optional[str] = None,
+                                bot_username: Optional[str] = None) -> tuple[str, dict]:
     user_data = await DB.user_data(user_id)
     view: str = user_data.get('last_schedule_view')
     message_text = ''
@@ -158,7 +160,8 @@ async def form_schedule_message(user_id: int, offset: int = 0,
             is_lecture_emoji = '\U0001f4d6' if lesson['isLecture'] else '\U0001f52c'
             classroom_data = f'{classroom}{building}' if building != 'ДОТ' else 'ДОТ'
             if teacher and bot_username:
-                teacher_link = hlink(teacher, f"tg://resolve?domain={bot_username}&start=teacher_{teacher_id_counter}")
+                teacher_link = hlink(teacher,
+                                     f"tg://resolve?domain={bot_username}&start=teacher_{teacher_id_counter}")
                 teachers_dict[teacher_id_counter] = full_teacher_name
                 teacher_id_counter += 1
                 teacher = teacher_link

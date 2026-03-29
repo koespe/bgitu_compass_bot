@@ -9,7 +9,7 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, CallbackQuery, Update, InputMediaPhoto
 
-from config_reader import graphics
+from config_reader import graphics, config
 from database.base import DB
 from keyboards import KB
 from modules.schudule_parser import form_schedule_message
@@ -61,6 +61,7 @@ async def handle_schedule(update: Union[Update, CallbackQuery, Message], state: 
     graphics_media = graphics.favorites_schedule if is_favorite else graphics.schedule
 
     is_holiday_skipped = False
+    msg_text = ''
     for _ in range(offset, offset + 7):
         msg_text, teachers_dict = await form_schedule_message(user_id=user_id,
                                                               offset=offset,
@@ -69,7 +70,6 @@ async def handle_schedule(update: Union[Update, CallbackQuery, Message], state: 
                                                               teacher_name=teacher_name,
                                                               bot_username=(await update.bot.me()).username)
 
-        # Сохраняем teachers_dict в FSM
         if teachers_dict:
             await state.update_data(teachers_dict=teachers_dict)
 
@@ -77,7 +77,7 @@ async def handle_schedule(update: Union[Update, CallbackQuery, Message], state: 
         if msg_text == "GROUP_NOT_FOUND" or msg_text == "TEACHER_NOT_FOUND":
             await DB.logout(user_id)
             await state.update_data(old_user=None)
-            await state.update_data(teachers_dict={})  # Очищаем teachers_dict
+            await state.update_data(teachers_dict={})
 
             answer_msg_text = (
                 "\u26a0\ufe0f Не удалось найти вашу группу. Выберите ее заново."
@@ -97,7 +97,7 @@ async def handle_schedule(update: Union[Update, CallbackQuery, Message], state: 
         # Проверяем на ошибку с избранной группой
         if msg_text == "FAV_GROUP_NOT_FOUND":
             await DB.manage_favorites(action="delete", user_id=user_id, group_id=favorite_group_id)
-            await state.update_data(teachers_dict={})  # Очищаем teachers_dict
+            await state.update_data(teachers_dict={})
             # Показываем сообщение об ошибке и возвращаем в меню избранных групп
             if isinstance(update, CallbackQuery):
                 await update.answer(text="Выбранная группа не была найдена")
@@ -118,6 +118,15 @@ async def handle_schedule(update: Union[Update, CallbackQuery, Message], state: 
         else:
             await state.update_data(offset=offset)
             break  # Получили расписание, идем дальше
+
+    if not msg_text:
+        msg_text = "Расписание не было получено. Поддержка была уведомлена об этом."
+        await update.bot.send_message(chat_id=user_id, text=msg_text)
+        administration_msg_text = (f"Пользователь: @{update.message.from_user.username} ({user_id}) "
+                                   f"не смог получить расписание для группы "
+                                   f"{favorite_group_id or user_data.get('group_name')}")
+        await update.bot.send_message(chat_id=config.administration_chat_id, text=administration_msg_text)
+        return
     if is_holiday_skipped and isinstance(update, CallbackQuery):
         await update.answer(text='Выходной пропущен')
 
