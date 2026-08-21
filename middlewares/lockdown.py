@@ -6,7 +6,8 @@ from aiogram import BaseMiddleware
 from aiogram.types import TelegramObject, Message, CallbackQuery
 from cachetools import cached, TTLCache
 
-from config_reader import graphics
+from config_reader import graphics, config
+from database.base import DB
 
 LOCKDOWN_FILE = Path("data") / "lockdown.json"
 
@@ -41,11 +42,17 @@ class LockdownMiddleware(BaseMiddleware):
         if not is_lockdown_active():
             return await handler(event, data)
 
+        if event.from_user.id == config.admin_tg_id:
+            await event.answer("LOCKDOWN активен.")
+            return await handler(event, data)  # Доступ к команде /admin
+
         if isinstance(event, Message):
             await event.answer_photo(photo=graphics.start_menu)
             await event.answer(LOCKDOWN_MESSAGE)
+            await DB.add_user(user_id=event.from_user.id)
         elif isinstance(event, CallbackQuery):
             await event.message.answer_photo(photo=graphics.start_menu)
             await event.message.answer(LOCKDOWN_MESSAGE)
+            await DB.add_user(user_id=event.from_user.id)
 
         return None
