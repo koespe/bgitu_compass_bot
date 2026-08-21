@@ -79,11 +79,11 @@ async def handle_start_command(update: Union[Message, CallbackQuery, Update], st
 @auth_router.callback_query(F.data == 'about')
 async def about_project(callback: CallbackQuery):
     about_text = (
-        'Этот <b>неофициальный</b> бот использует файлы расписания с сайта bgitu.ru — предоставляется расписание для '
+        'Этот бот использует файлы расписания с сайта bgitu.ru — предоставляется расписание для '
         'групп <b><u>БАК, СПО и МАГ</u></b>\n'
-        '\U0001f4f1 Также есть <b>приложение для Android</b> → bgitu-compass.ru\n\n'
-        '\U0001f464 <b>Разработчик:</b> студент ПрИ-301 — <b>Пудов Кирилл (@koespe)</b>\n'
-        '\U0001f464 <b>Разработчик приложения:</b> студент ПрИ-301 — <b>Елисей Веревкин (@Injent)</b>\n'
+        '\U0001f4f1 Также есть <b>приложение для Android</b> → compass.bgitu.ru\n\n'
+        '\U0001f464 <b>Разработчик: Пудов Кирилл (@koespe)</b>\n'
+        '\U0001f464 <b>Разработчик приложения:</b> студент ПрИ-401 — <b>Елисей Веревкин (@Injent)</b>\n'
     )
     await callback.message.edit_text(text=about_text, reply_markup=KB.start_menu(is_about=True))
 
