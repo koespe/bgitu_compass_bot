@@ -40,9 +40,12 @@ async def send_photo_data(message: Message):
 @admin_panel_router.message(IsAdmin(), F.text == '/admin')
 async def admin_panel(message: Message):
     async with get_session() as session:
-        query = select(func.count(Users.id))
-        users_count = (await session.execute(query)).scalar()
-        stats_message = 'Статистика:\n' f'Всего: {users_count} пользователей\n'
+        all_users_query = select(func.count(Users.id))
+        all_users_count = (await session.execute(all_users_query)).scalar()
+
+        with_groups_query = select(func.count(Users.id)).where(Users.group_id.isnot(None))
+        with_groups_users_count = (await session.execute(with_groups_query)).scalar()
+        stats_message = 'Статистика:\n' f'Всего: {with_groups_users_count}/{all_users_count} пользователей\n'
 
         query = select(Users.group_name, func.count(Users.group_name)).group_by(Users.group_name)
         result = (await session.execute(query)).all()
