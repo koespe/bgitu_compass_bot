@@ -2,3 +2,7 @@
 /.env
 /.idea/
 /images.ini
+/data/groups_cache.json
+/data/groups_snapshot.json
+/data/lockdown.json
+/data/site_updates_data.json
