@@ -26,11 +26,10 @@ async def handle_start_command(update: Union[Message, CallbackQuery, Update], st
     if isinstance(update, Message) and update.text.startswith('/start teacher_'):
         teacher_id = int(update.text.split(' ', 1)[1].replace('teacher_', ''))
         await update.delete()
-
         fsm_data = await state.get_data()
         teachers_dict = fsm_data.get('teachers_dict', {})
-
-        teacher_full_name = teachers_dict.get(teacher_id)
+        teacher_full_name = teachers_dict.get(str(teacher_id))  # string из-за того, что на сервере linux наблюдается
+        # другое поведение словаря при попадании в state (int превращается в str)
         if not teacher_full_name:
             await update.answer("Преподаватель не найден")
             return

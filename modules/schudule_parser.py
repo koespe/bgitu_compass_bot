@@ -115,7 +115,8 @@ async def form_schedule_message(user_id: int,
                 if teacher and bot_username:
                     teacher_link = hlink(teacher,
                                          f"tg://resolve?domain={bot_username}&start=teacher_{teacher_id_counter}")
-                    teachers_dict[teacher_id_counter] = full_teacher_name
+                    teachers_dict[str(teacher_id_counter)] = full_teacher_name  # string из-за того, что на сервере
+                    # linux наблюдается другое поведение словаря при попадании в state (int превращается в str)
                     teacher_id_counter += 1
                     teacher = teacher_link
                 elif teacher:
@@ -162,7 +163,8 @@ async def form_schedule_message(user_id: int,
             if teacher and bot_username:
                 teacher_link = hlink(teacher,
                                      f"tg://resolve?domain={bot_username}&start=teacher_{teacher_id_counter}")
-                teachers_dict[teacher_id_counter] = full_teacher_name
+                teachers_dict[str(teacher_id_counter)] = full_teacher_name  # string из-за того, что на сервере
+                # linux наблюдается другое поведение словаря при попадании в state (int превращается в str)
                 teacher_id_counter += 1
                 teacher = teacher_link
             elif teacher:
