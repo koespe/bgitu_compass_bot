@@ -15,9 +15,6 @@ from keyboards import KB
 favorite_groups_router = Router()
 
 
-# todo: не забыть про удлаение ("удалить группу")
-
-
 @favorite_groups_router.callback_query(F.data.in_({'favorite_group_delete_button', 'favorite_groups'}))
 async def favorite_groups_menu(callback: CallbackQuery, state: FSMContext):
     fsm_data = await state.get_data()
