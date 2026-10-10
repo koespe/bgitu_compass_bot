@@ -12,6 +12,7 @@ from aiogram.types import Message, CallbackQuery, Update, InputMediaPhoto
 from config_reader import graphics, config
 from database.base import DB
 from keyboards import KB
+from modules.api_client import API_UNAVAILABLE_TEXT
 from modules.schudule_parser import form_schedule_message
 
 main_menu_router = Router()
@@ -72,6 +73,15 @@ async def handle_schedule(update: Union[Update, CallbackQuery, Message], state: 
 
         if teachers_dict:
             await state.update_data(teachers_dict=teachers_dict)
+
+        if msg_text == "API_UNAVAILABLE":
+            await state.update_data(teachers_dict={})
+
+            if isinstance(update, CallbackQuery):
+                await update.answer(API_UNAVAILABLE_TEXT, show_alert=True)
+            else:
+                await update.answer(API_UNAVAILABLE_TEXT)
+            return
 
         # Проверяем на ошибку группы не найдена
         if msg_text == "GROUP_NOT_FOUND" or msg_text == "TEACHER_NOT_FOUND":

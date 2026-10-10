@@ -1,10 +1,10 @@
 import asyncio
 import json
+import logging
 from contextlib import suppress
 from pathlib import Path
 from typing import Optional
 
-import aiohttp
 from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest
 from sqlalchemy import select
@@ -13,31 +13,33 @@ from config_reader import config
 from database.base import get_session
 from database.models import Users
 from keyboards import KB
+from modules.api_client import get_groups, invalidate_lessons
 
 CACHE_FILE = Path("data") / "groups_cache.json"
-
-
-async def fetch_groups_info() -> list[dict]:
-    async with aiohttp.ClientSession() as session:
-        response = await session.get(config.api_host + "groups")
-        if response.status == 200:
-            return await response.json()
-        return []
+logger = logging.getLogger(__name__)
 
 
 def load_cached_data() -> Optional[dict[str, dict]]:
     if not CACHE_FILE.exists():
         return None
 
-    with open(CACHE_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
+    try:
+        with open(CACHE_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        logger.exception(f"Не удалось прочитать кэш групп из {CACHE_FILE.resolve()}")
+        return None
 
 
 def save_cached_data(groups: list[dict]) -> None:
     cache_data = {str(group["id"]): group for group in groups}
 
-    with open(CACHE_FILE, "w", encoding="utf-8") as f:
-        json.dump(cache_data, f, ensure_ascii=False, indent=2)
+    try:
+        CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(CACHE_FILE, "w", encoding="utf-8") as f:
+            json.dump(cache_data, f, ensure_ascii=False, indent=2)
+    except Exception:
+        logger.exception(f"Не удалось сохранить кэш групп в {CACHE_FILE.resolve()}")
 
 
 def get_changed_groups(current_groups: list[dict], cached_data: Optional[dict[str, dict]]) -> list[dict]:
@@ -59,6 +61,24 @@ def get_changed_groups(current_groups: list[dict], cached_data: Optional[dict[st
             changed.append(group)
 
     return changed
+
+
+def get_removed_group_ids(current_groups: list[dict], cached_data: Optional[dict[str, dict]]) -> set[int]:
+    if cached_data is None:
+        return set()
+
+    current_ids = {group['id'] for group in current_groups}
+
+    removed = set()
+    for group_id in cached_data:
+        try:
+            parsed_id = int(group_id)
+        except (TypeError, ValueError):
+            continue
+        if parsed_id not in current_ids:
+            removed.add(parsed_id)
+
+    return removed
 
 
 async def send_schedule_update_notification(bot: Bot, changed_groups: list[dict]) -> None:
@@ -112,8 +132,8 @@ async def check_groups_changes_and_notify(bot) -> None:
     """
     Функция для APScheduler
     """
-    current_groups = await fetch_groups_info()
-    if not current_groups:
+    current_groups = await get_groups()
+    if not current_groups:  # API недоступен или нет групп
         return
 
     cached_data = load_cached_data()
@@ -123,8 +143,17 @@ async def check_groups_changes_and_notify(bot) -> None:
         return
 
     changed_groups = get_changed_groups(current_groups, cached_data)
+    removed_group_ids = get_removed_group_ids(current_groups, cached_data)
 
-    if changed_groups:
-        await send_schedule_update_notification(bot, changed_groups)
+    # Когда на сайте изменяется расписание, то удаляем только изменившиеся и исчезнувшие группы
+    ids_to_delete = [group['id'] for group in changed_groups] + sorted(removed_group_ids)
+    purged = invalidate_lessons(ids_to_delete)
+    if purged:
+        logger.info("Снесён кеш расписания: %d из %d групп, затронуты %s",
+                    purged, len(ids_to_delete), ids_to_delete)
 
-    save_cached_data(current_groups)
+    try:
+        if changed_groups:
+            await send_schedule_update_notification(bot, changed_groups)
+    finally:
+        save_cached_data(current_groups)

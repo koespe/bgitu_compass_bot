@@ -1,20 +1,20 @@
 from contextlib import suppress
 from typing import Optional
 
-import aiohttp
 from aiogram import Router, F
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, CallbackQuery, InputMediaPhoto
 
-from config_reader import config, graphics
+from config_reader import graphics
 from keyboards import KB
+from modules.api_client import API_UNAVAILABLE_TEXT, get_teacher_schedule_flat, search_teachers
 from modules.schudule_parser import month_ru_loc, weekday_ru_loc, form_superscript, is_teacher_warning_date
 from states import TeacherViewer
 
 teachers_router = Router()
-TEACHER_SEARCH_WARNING_TEXT = ("\u203c\ufe0f <b>Данные могут быть неверными вследствии проведения сессии! "
+TEACHER_SEARCH_WARNING_TEXT = ("\u203c\ufe0f <b>Данные могут быть неверными вследствие проведения сессии! "
                                "Уточняйте информацию у преподавателя</b>\n\n")
 
 
@@ -46,35 +46,28 @@ async def handle_surname(message: Message, state: FSMContext):
     surname = message.text
     await message.delete()
 
+    data = await state.get_data()
+    bot_msg_id = data.get('bot_msg_id')
+    reply_markup = KB.back_to_schedule()
+
     if len(surname) < 3:
-        await message.bot.edit_message_text(
-            chat_id=message.from_user.id,
-            message_id=(await state.get_data()).get('bot_msg_id'),
-            text='\u26a0\ufe0f Запрос слишком короткий. Введите фамилию преподавателя',
-            reply_markup=KB.back_to_schedule(),
-        )
-        return
+        text = '\u26a0\ufe0f Запрос слишком короткий. Введите фамилию преподавателя'
+    else:
+        search_resp = await search_teachers(surname)
+        if search_resp is None:
+            text = API_UNAVAILABLE_TEXT
+        elif not search_resp:
+            text = '\u26a0\ufe0f Поиск не дал результатов — проверьте написание <b><u>фамилии</u></b>'
+        else:
+            await state.update_data(teachers_list=search_resp)
+            text = '\U0001f50d Выберите преподавателя'
+            reply_markup = KB.teachers_search_results(search_resp)
 
-    async with aiohttp.ClientSession() as web_session:
-        search_req = await web_session.get(url=config.api_host + f'teacherSchedule?searchQuery={surname}')
-        search_resp: list = await search_req.json()
-
-    if len(search_resp) == 0:
-        await message.bot.edit_message_text(
-            chat_id=message.from_user.id,
-            message_id=(await state.get_data()).get('bot_msg_id'),
-            text='\u26a0\ufe0f Поиск не дал результатов — проверьте написание <b><u>фамилии</u></b>',
-            reply_markup=KB.back_to_schedule(),
-        )
-        return
-
-    await state.update_data(teachers_list=search_resp)
-    teachers_kb = KB.teachers_search_results(search_resp)
     await message.bot.edit_message_text(
         chat_id=message.from_user.id,
-        message_id=(await state.get_data()).get('bot_msg_id'),
-        text='\U0001f50d Выберите преподавателя',
-        reply_markup=teachers_kb,
+        message_id=bot_msg_id,
+        text=text,
+        reply_markup=reply_markup,
     )
 
 
@@ -92,11 +85,11 @@ async def handle_teacher_schedule(callback: CallbackQuery, state: FSMContext, te
         teachers_list = fsm_data.get('teachers_list', [])
         teacher = teachers_list[teacher_idx]
 
-    async with aiohttp.ClientSession() as web_session:
-        search_req = await web_session.get(
-            url=config.api_host + f'teacherSchedule?teacher={teacher}&teacherSearch=true'
-        )
-        search_resp: list = await search_req.json()
+    search_resp = await get_teacher_schedule_flat(teacher)
+    if search_resp is None:
+        await callback.answer(API_UNAVAILABLE_TEXT, show_alert=True)
+        return
+
     message_text = f'{TEACHER_SEARCH_WARNING_TEXT if await is_teacher_warning_date() else ""}' \
                    f'<blockquote>Расписание преподавателя <u>{teacher}</u></blockquote>\n'
     last_weekday = ''

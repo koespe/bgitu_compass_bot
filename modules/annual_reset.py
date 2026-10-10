@@ -4,7 +4,6 @@ from contextlib import suppress
 from datetime import date
 from pathlib import Path
 
-import aiohttp
 from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest
 from sqlalchemy import select
@@ -15,6 +14,7 @@ from database.base import get_session
 from database.models import Users, engine
 from keyboards import KB
 from middlewares.lockdown import lockdown_cache
+from modules.api_client import get_groups
 
 LOCKDOWN_FILE = Path("data") / "lockdown.json"
 GROUPS_SNAPSHOT_FILE = Path("data") / "groups_snapshot.json"
@@ -47,53 +47,50 @@ async def check_new_groups_and_disable_lockdown(bot: Bot) -> None:
     """
     `return` == "доступ пока не открываем"
     """
-    # До 15 июля и после 15 октября не отслеживаем новые группы
+    # TODO: проверить необходимость половины этой функции
+    # До 1 августа и после 1 октября не отслеживаем новые группы и не уведомляем пользователей
     today = date.today()
-    if today < date(today.year, 7, 15) or today > date(today.year, 10, 15):
+    if today < date(today.year, 8, 1) or today > date(today.year, 10, 1):
         return
 
-    async with aiohttp.ClientSession() as session:
-        response = await session.get(config.api_host + "groups")
-        if response.status != 200:
-            return
-        groups = await response.json()
-        if not groups:
-            return
+    groups = await get_groups()
+    if not groups:
+        return
 
-        # Если файла не было, значит только что появились первые группы и надо снять блокировку
-        if not GROUPS_SNAPSHOT_FILE.exists():
-            with open(GROUPS_SNAPSHOT_FILE, "w", encoding="utf-8") as f:
-                json.dump(groups, f, ensure_ascii=False, indent=2)
-            old_groups = []
-
-            with open(LOCKDOWN_FILE, "w", encoding="utf-8") as f:
-                json.dump({"active": False}, f, ensure_ascii=False)
-            lockdown_cache.clear()
-        else:
-            with open(GROUPS_SNAPSHOT_FILE, "r", encoding="utf-8") as f:
-                old_groups = json.load(f)
-
-        old_ids = {g["id"] for g in old_groups}
-        new_groups = [g for g in groups if g["id"] not in old_ids]
-
-        if new_groups:
-            async with get_session() as session:
-                query = select(Users.id).where(
-                    (Users.group_id.is_(None)) & (Users.teacher_name.is_(None))
-                )
-                users = (await session.execute(query)).all()
-
-            groups_list = "\n".join(f"• {g.get('name', g['id'])}" for g in new_groups)
-            text = f"\U0001F389 <b>Появились новые группы!</b>\n\n{groups_list}"
-
-            for user in users:
-                with suppress(TelegramBadRequest):
-                    await bot.send_message(user.id, text, reply_markup=KB.start_menu())
-
-            await bot.send_message(
-                chat_id=config.administration_chat_id,
-                text=f"\U0001F514 <b>Обнаружены новые группы</b>\nПоявилось групп: {len(new_groups)}\n\n{text}"
-            )
-
+    # Если файла не было, значит только что появились первые группы и надо снять блокировку
+    if not GROUPS_SNAPSHOT_FILE.exists():
         with open(GROUPS_SNAPSHOT_FILE, "w", encoding="utf-8") as f:
             json.dump(groups, f, ensure_ascii=False, indent=2)
+        old_groups = []
+
+        with open(LOCKDOWN_FILE, "w", encoding="utf-8") as f:
+            json.dump({"active": False}, f, ensure_ascii=False)
+        lockdown_cache.clear()
+    else:
+        with open(GROUPS_SNAPSHOT_FILE, "r", encoding="utf-8") as f:
+            old_groups = json.load(f)
+
+    old_ids = {g["id"] for g in old_groups}
+    new_groups = [g for g in groups if g["id"] not in old_ids]
+
+    if new_groups:
+        async with get_session() as session:
+            query = select(Users.id).where(
+                (Users.group_id.is_(None)) & (Users.teacher_name.is_(None))
+            )
+            users = (await session.execute(query)).all()
+
+        groups_list = "\n".join(f"• {g.get('name', g['id'])}" for g in new_groups)
+        text = f"\U0001F389 <b>Появились новые группы!</b>\n\n{groups_list}"
+
+        for user in users:
+            with suppress(TelegramBadRequest):
+                await bot.send_message(user.id, text, reply_markup=KB.start_menu())
+
+        await bot.send_message(
+            chat_id=config.administration_chat_id,
+            text=f"\U0001F514 <b>Обнаружены новые группы</b>\nПоявилось групп: {len(new_groups)}\n\n{text}"
+        )
+
+    with open(GROUPS_SNAPSHOT_FILE, "w", encoding="utf-8") as f:
+        json.dump(groups, f, ensure_ascii=False, indent=2)

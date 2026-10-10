@@ -1,12 +1,19 @@
 import datetime
 from typing import Optional
 
-import aiohttp
 from aiogram.utils.markdown import hlink
 from cachetools import TTLCache
 
-from config_reader import config
 from database.base import DB
+from modules.api_client import (
+    STATUS_GROUP_NOT_FOUND,
+    STATUS_OK,
+    STATUS_TEACHER_NOT_FOUND,
+    STATUS_UNAVAILABLE,
+    get_remote_config,
+    get_schedule,
+    get_teacher_schedule,
+)
 
 weekday_en_loc = ['', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', '']
 weekday_ru_loc = ['', 'ПН', 'ВТ', 'СР', 'ЧТ', 'ПТ', 'СБ']
@@ -15,44 +22,26 @@ month_ru_loc = ['', 'января', 'февраля', 'марта', 'апрел�
                 'ноября', 'декабря']
 
 term_start_date_cache = TTLCache(maxsize=2, ttl=600)
-remote_config_cache = TTLCache(maxsize=2, ttl=600)
 
 
-async def get_remote_config() -> dict:
-    if 'data' in remote_config_cache:
-        return remote_config_cache['data']
+async def api_get_schedule(group_id: int) -> dict:
+    status, schedule = await get_schedule(group_id)
 
-    async with aiohttp.ClientSession() as session:
-        response = await session.get(config.api_host + 'remoteConfig')
-        if response.status == 200:
-            data = await response.json()
-            remote_config_cache['data'] = data
-            return data
-    return {}
+    if status == STATUS_GROUP_NOT_FOUND:  # Группа отсутсвует
+        return {"status": STATUS_GROUP_NOT_FOUND}
+    if status == STATUS_UNAVAILABLE:
+        return {"status": STATUS_UNAVAILABLE}
+
+    return schedule
 
 
-async def api_get_schedule(group_id: int):
-    async with aiohttp.ClientSession() as session:
-        req_lessons = await session.get(
-            url=config.api_host + 'v3/lessons' + f'?groupId={group_id}')
+async def api_get_teacher_schedule(teacher: str) -> dict:
+    status, schedule = await get_teacher_schedule(teacher)
 
-        if req_lessons.status == 409:  # Группа отсутсвует
-            return {"status": 409}
+    if status != STATUS_OK:
+        return {"status": status}
 
-        schedule = await req_lessons.json()
-        return schedule
-
-
-async def api_get_teacher_schedule(teacher: str):
-    async with aiohttp.ClientSession() as session:
-        req_lessons = await session.get(url=config.api_host + 'teacherSchedule' + f'?teacher={teacher}')
-
-        schedule = await req_lessons.json()
-
-        if not any(schedule.get('first_week', {}).values()) and not any(schedule.get('second_week', {}).values()):
-            return {"status": 404}
-
-        return schedule
+    return schedule
 
 
 async def form_schedule_message(user_id: int,
@@ -74,10 +63,13 @@ async def form_schedule_message(user_id: int,
         schedule: dict = await api_get_schedule(group_id=group_id)
 
     # Проверяем на ошибку 409 (группа не найдена)
-    if schedule.get("status") == 409:
+    schedule_status = schedule.get("status")
+    if schedule_status == STATUS_GROUP_NOT_FOUND:
         return "FAV_GROUP_NOT_FOUND" if favorite_group_id else "GROUP_NOT_FOUND", {}
-    if schedule.get("status") == 404:
+    if schedule_status == STATUS_TEACHER_NOT_FOUND:
         return "TEACHER_NOT_FOUND", {}
+    if schedule_status == STATUS_UNAVAILABLE:
+        return "API_UNAVAILABLE", {}
 
     if view == 'weekly':
         cur_week_text = ' текущую' if offset == 0 else ''

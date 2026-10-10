@@ -1,16 +1,16 @@
 from contextlib import suppress
 
-import aiohttp
 from aiogram import Router, F
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InputMediaPhoto
 
 import states
-from config_reader import graphics, config
+from config_reader import graphics
 from database.base import DB
 from handlers.users.main_menu import handle_schedule
 from keyboards import KB
+from modules.api_client import get_group_name
 
 favorite_groups_router = Router()
 
@@ -61,12 +61,13 @@ async def favorite_group_search(callback: CallbackQuery, state: FSMContext):
 async def handle_favorite_group_selection(callback: CallbackQuery, state: FSMContext):
     group_id = callback.data.split('=')[1]
     await state.update_data(favorite_group_id=group_id)
-    async with aiohttp.ClientSession() as web_session:
-        group_name_req = await web_session.get(url=config.api_host + f'groups?groupId={group_id}')
-        group_name_resp: dict = await group_name_req.json()
-        group_name = group_name_resp[0].get('name')
-    await state.update_data(favorite_group_name=group_name)
 
+    group_name = await get_group_name(int(group_id))
+    if group_name is None:  # API и файловый кеш недоступны
+        await callback.answer("Не удалось получить название группы. Попробуйте позже", show_alert=True)
+        return
+
+    await state.update_data(favorite_group_name=group_name)
     await handle_schedule(callback, state)
 
 

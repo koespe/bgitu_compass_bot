@@ -2,7 +2,6 @@ import asyncio
 from contextlib import suppress
 from typing import Union
 
-import aiohttp
 from aiogram import Router, F
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import CommandStart, StateFilter
@@ -16,6 +15,7 @@ from handlers.users.favorite_groups import favorite_groups_menu
 from handlers.users.main_menu import handle_schedule
 from handlers.users.teachers_viewer import handle_teacher_schedule
 from keyboards import KB
+from modules.api_client import API_UNAVAILABLE_TEXT, search_groups, search_teachers
 from states import AuthState, SupportWordsState, TeacherViewer
 
 auth_router = Router()
@@ -49,7 +49,7 @@ async def handle_start_command(update: Union[Message, CallbackQuery, Update], st
 
     welcome_text = (
         'Этот бот поможет узнать <b>расписание групп бакалавриата, СПО и магистратуры</b>\n\n'
-        '\u26a1 Удобное <b>приложение для Android</b> → bgitu-compass.ru'
+        '\u26a1 Удобное <b>приложение для Android</b> → compass.bgitu.ru'
     )
 
     # Нажатие /start новым пользователем
@@ -82,7 +82,7 @@ async def about_project(callback: CallbackQuery):
         'групп <b><u>БАК, СПО и МАГ</u></b>\n'
         '\U0001f4f1 Также есть <b>приложение для Android</b> → compass.bgitu.ru\n\n'
         '\U0001f464 <b>Разработчик: Пудов Кирилл (@koespe)</b>\n'
-        '\U0001f464 <b>Разработчик приложения:</b> студент ПрИ-401 — <b>Елисей Веревкин (@Injent)</b>\n'
+        '\U0001f464 <b>Разработчик приложения: Елисей Веревкин (@Injent)</b>\n'
     )
     await callback.message.edit_text(text=about_text, reply_markup=KB.start_menu(is_about=True))
 
@@ -129,11 +129,13 @@ async def handle_search_results(message: Message, state: FSMContext):
 
     await message.delete()  # Поисковый запрос пользователя
 
-    endpoint = 'groups' if is_group else 'teacherSchedule'
-    async with aiohttp.ClientSession() as web_session:
-        url = f'{config.api_host}{endpoint}?searchQuery={modified_query}'
-        async with web_session.get(url=url) as search_req:
-            search_resp = await search_req.json()
+    search_resp = await (search_groups(modified_query) if is_group else search_teachers(modified_query))
+    if search_resp is None:  # None - API недоступен
+        retry_keyboard = (KB.back_to_schedule() if fsm_data.get('offset') is not None
+                          else KB.cancel_group_search())
+        await message.bot.edit_message_text(chat_id=message.from_user.id, message_id=bot_msg_id,
+                                            text=API_UNAVAILABLE_TEXT, reply_markup=retry_keyboard)
+        return
 
     if not search_resp:
         if is_group:

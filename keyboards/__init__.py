@@ -1,9 +1,8 @@
-import aiohttp
 from aiogram.types import InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from config_reader import config
 from database.base import DB
+from modules.api_client import get_groups_names
 
 
 class KB:
@@ -35,11 +34,8 @@ class KB:
     async def schedule(user_id: int, offset: int, is_favorite: bool = False):
         user_data = await DB.user_data(user_id)
         last_schedule_view = user_data.get('last_schedule_view')
-
         change_view_button_text = 'Отображение: на день' if last_schedule_view == 'daily' else 'Отображение: на неделю'
-
         kb = InlineKeyboardBuilder()
-
         if offset != 0:
             kb.row(
                 InlineKeyboardButton(text='\u2b05\ufe0f', callback_data='schedule_page_prev'),
@@ -76,25 +72,26 @@ class KB:
 
     @staticmethod
     async def favorites_main_menu(user_id: int, is_deleting: bool = False):
-        user_favorite_groups: list = (await DB.user_data(user_id)).get('favorite_groups')
-
+        user_favorite_groups: list = (await DB.user_data(user_id)).get('favorite_groups') or []
         action_word = 'delete' if is_deleting else 'open'
+        prefix = '\u274c ' if is_deleting else ''  # Наглядно показываем удаление группы
         kb = InlineKeyboardBuilder()
-        async with aiohttp.ClientSession() as web_session:
-            for group_id in user_favorite_groups:
-
-                group_name_req = await web_session.get(url=config.api_host + f'groups?groupId={group_id}')
-                group_name_resp: dict = await group_name_req.json()
-                if group_name_req.status == 200:  # Обработка удаленной группы
-                    group_name = group_name_resp[0].get('name')
-                    kb.row(
-                        InlineKeyboardButton(text=group_name, callback_data=f'favorite_group_{action_word}={group_id}')
-                    )
+        groups_names = await get_groups_names()
+        for group_id in user_favorite_groups:
+            group_name = groups_names.get(group_id)
+            if not group_name:
+                continue
+            kb.row(
+                InlineKeyboardButton(text=f'{prefix}{group_name}',
+                                     callback_data=f'favorite_group_{action_word}={group_id}')
+            )
         if not is_deleting:
-            kb.row(InlineKeyboardButton(text='+ Добавить группу', callback_data=f'favorite_group_search'))
-            if len(user_favorite_groups) > 0:
+            kb.row(InlineKeyboardButton(text='+ Добавить группу', callback_data='favorite_group_search'))
+            if user_favorite_groups:
                 kb.row(InlineKeyboardButton(text='– Удалить группу', callback_data='favorite_group_delete_button'))
-        kb.row(InlineKeyboardButton(text='\u21aa\ufe0f Вернуться назад', callback_data='back_to_schedule'))
+            kb.row(InlineKeyboardButton(text='\u21aa\ufe0f Вернуться назад', callback_data='back_to_schedule'))
+        else:
+            kb.row(InlineKeyboardButton(text='\u21aa\ufe0f Отмена', callback_data='favorite_groups_menu'))
         return kb.as_markup()
 
     @staticmethod

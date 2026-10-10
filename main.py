@@ -6,6 +6,7 @@ from datetime import datetime
 
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.fsm.storage.redis import RedisStorage
 from aiogram.utils.callback_answer import CallbackAnswerMiddleware
 from apscheduler.jobstores.memory import MemoryJobStore
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -23,7 +24,9 @@ from middlewares.db import DbSessionMiddleware
 from middlewares.lockdown import LockdownMiddleware
 from middlewares.throttling import ThrottlingMiddleware
 from modules.annual_reset import enable_bot_lockdown, check_new_groups_and_disable_lockdown
+from modules.api_client import close_session
 from modules.groups_cache import check_groups_changes_and_notify
+from modules.site_updates import check_site_updates_and_notify
 
 
 async def main():
@@ -32,10 +35,15 @@ async def main():
     bot = Bot(config.bot_token.get_secret_value(), parse_mode="HTML")
     await graphics.validate(bot)
 
-    # fsm_storage = RedisStorage.from_url(str(config.redis_uri))
-    fsm_storage = MemoryStorage()
-    dp = Dispatcher(storage=fsm_storage)
+    platform_name = sys.platform
+    if platform_name.startswith('win'):
+        locale.setlocale(locale.LC_TIME, 'Russian_Russia.1251')
+        fsm_storage = MemoryStorage()
+    else:
+        locale.setlocale(locale.LC_TIME, 'ru_RU.utf8')
+        fsm_storage = RedisStorage.from_url(str(config.redis_uri))
 
+    dp = Dispatcher(storage=fsm_storage)
     dp.update.middleware(DbSessionMiddleware(session_pool=sessionmaker))
     dp.message.middleware(LockdownMiddleware())
     dp.callback_query.middleware(LockdownMiddleware())
@@ -52,19 +60,12 @@ async def main():
     dp.include_router(admin_panel_router)
 
     logging.basicConfig(
-        level=logging.INFO,
-        # filename='logs/logs.log',
-        # filemode='a',
+        level=logging.ERROR,
         format="%(asctime)s - %(levelname)s - %(name)s - %(message)s"
     )
 
-    platform_name = sys.platform
-    if platform_name.startswith('win'):
-        locale.setlocale(locale.LC_TIME, 'Russian_Russia.1251')
-    else:
-        locale.setlocale(locale.LC_TIME, 'ru_RU.utf8')
-
-    # jobstores = {'default': RedisJobStore(db=1)}
+    # TODO: Разобраться с записью кеша redis на диск, тогда можно jobstores = {'default': RedisJobStore(db=1)}
+    #   иначе можно упустить важные jobs (enable_bot_lockdown/check_new_groups_and_disable_lockdown)
     jobstores = {'default': MemoryJobStore()}
     scheduler = AsyncIOScheduler(jobstores=jobstores)
     scheduler.add_job(
@@ -75,6 +76,15 @@ async def main():
         args=[bot],
         id="groups_update_check"
     )
+    scheduler.add_job(
+        check_site_updates_and_notify,
+        trigger="interval",
+        minutes=30,
+        next_run_time=datetime.now(),
+        args=[bot],
+        id="site_updates_check"
+    )
+    # TODO: сервер бгиту часто падает, так что лучше с интервалом проверять
     scheduler.add_job(
         enable_bot_lockdown,
         trigger="cron",
@@ -98,6 +108,7 @@ async def main():
         await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
     finally:
         scheduler.shutdown()
+        await close_session()
 
 
 if __name__ == "__main__":
