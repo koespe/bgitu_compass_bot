@@ -10,7 +10,8 @@ from aiogram.types import Message, CallbackQuery, InputMediaPhoto
 from config_reader import graphics
 from keyboards import KB
 from modules.api_client import API_UNAVAILABLE_TEXT, get_teacher_schedule_flat, search_teachers
-from modules.schudule_parser import month_ru_loc, weekday_ru_loc, form_superscript, is_teacher_warning_date
+from modules.schudule_parser import month_ru_loc, weekday_ru_loc, form_superscript, form_lesson_number, \
+    is_teacher_warning_date
 from states import TeacherViewer
 
 teachers_router = Router()
@@ -93,10 +94,18 @@ async def handle_teacher_schedule(callback: CallbackQuery, state: FSMContext, te
     message_text = f'{TEACHER_SEARCH_WARNING_TEXT if await is_teacher_warning_date() else ""}' \
                    f'<blockquote>Расписание преподавателя <u>{teacher}</u></blockquote>\n'
     last_weekday = ''
+    current_day_key = None
+    day_index = 0
     for work_day in search_resp:
         lesson_date = f'{int(work_day["lessonDate"][8:])}' + ' ' + f'{month_ru_loc[int(work_day["lessonDate"][5:-3])]}'
         weekday = weekday_ru_loc[work_day['weekday']]
         msg_date_str = f"<b>{weekday} | {lesson_date}</b>\n"
+
+        day_key = (work_day['weekday'], work_day['lessonDate'])
+        if day_key != current_day_key:
+            current_day_key = day_key
+            day_index = 0
+        day_index += 1
 
         subscripts = form_superscript(time_str=work_day['endAt'][:-3], building=work_day["building"])
         formed_end_time = subscripts[0]
@@ -104,6 +113,7 @@ async def handle_teacher_schedule(callback: CallbackQuery, state: FSMContext, te
 
         is_lecture_emoji = '\U0001f4d6' if work_day['isLecture'] else '\U0001f52c'
         classroom_data = f'{work_day["classroom"]}{formed_building}' if work_day['building'] != 'ДОТ' else 'ДОТ'
+        lesson_emoji = form_lesson_number(work_day['startAt'][:-3], work_day['building'], day_index)
 
         if last_weekday != weekday:
             last_weekday = weekday
@@ -111,7 +121,8 @@ async def handle_teacher_schedule(callback: CallbackQuery, state: FSMContext, te
         else:
             msg_date_str = ''
         message_text += (
-            f"{msg_date_str}" f"[{is_lecture_emoji}] {work_day['startAt'][:-3]}{formed_end_time} | {classroom_data}\n"
+            f"{msg_date_str}{lesson_emoji}|{is_lecture_emoji}|"
+            f"{work_day['startAt'][:-3]}{formed_end_time} | {classroom_data}\n"
         )
 
     graphics_media = InputMediaPhoto(media=graphics.teachers_schedule)

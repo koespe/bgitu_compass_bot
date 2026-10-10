@@ -23,6 +23,31 @@ month_ru_loc = ['', 'января', 'февраля', 'марта', 'апрел�
 
 term_start_date_cache = TTLCache(maxsize=2, ttl=600)
 
+# {корпус: {время начала: номер занятия}}
+LESSON_START_TIMES = {
+    "1": {"08:20": 1, "10:05": 2, "11:50": 3, "14:00": 4, "15:45": 5},
+    "2": {"08:50": 1, "10:35": 2, "12:20": 3, "14:30": 4, "16:15": 5},
+}
+
+
+def form_lesson_number(start_time: str, building: str, fallback_number: int) -> str:
+    """Возвращает номер занятия в виде эмодзи-цифры на голубом фоне
+
+    Номер определяется по таблице времени начала пар корпуса. Для ДОТ (без корпуса)
+    проверяются обе таблицы. Если время не найдено — используется порядковый номер дня.
+    """
+    lesson_number = None
+    if building in LESSON_START_TIMES:
+        lesson_number = LESSON_START_TIMES[building].get(start_time)
+    if lesson_number is None:
+        for table in LESSON_START_TIMES.values():
+            if start_time in table:
+                lesson_number = table[start_time]
+                break
+    if lesson_number is None:
+        lesson_number = fallback_number
+    return f"{lesson_number}\ufe0f\u20e3"
+
 
 async def api_get_schedule(group_id: int) -> dict:
     status, schedule = await get_schedule(group_id)
@@ -89,9 +114,9 @@ async def form_schedule_message(user_id: int,
 
             lessons_data: list = schedule.get(week_type).get(weekday_en_loc[weekday])
             str_lessons_data = ''
-            for lesson in lessons_data:  # Идем по парам на день
-                """[emoji] 08:20⁰⁹·⁵⁵ | ДОТ
-                Базы данных (Козлова И.Р.)"""
+            for day_index, lesson in enumerate(lessons_data, start=1):  # Идем по парам на день
+                """[N]|[emoji]|08:20⁰⁹·⁵⁵ | 258ᴷ¹
+                Go-разработка (Григорьев А.Г.)"""
                 subscripts = form_superscript(time_str=lesson['endAt'][:-3],
                                               building=lesson["building"])
                 start_time = lesson["startAt"][:-3]
@@ -102,6 +127,7 @@ async def form_schedule_message(user_id: int,
                 full_teacher_name = lesson.get("teacherFullName")
                 subject_name = lesson["subjectName"]
 
+                lesson_emoji = form_lesson_number(start_time, lesson["building"], day_index)
                 is_lecture_emoji = '\U0001f4d6' if lesson['isLecture'] else '\U0001f52c'
                 classroom_data = f'{classroom}{building}' if building != 'ДОТ' else 'ДОТ'
                 if teacher and bot_username:
@@ -116,7 +142,7 @@ async def form_schedule_message(user_id: int,
                 else:
                     teacher = ''
 
-                str_lessons_data += (f"[{is_lecture_emoji}] {start_time}{end_time} | {classroom_data}\n"
+                str_lessons_data += (f"{lesson_emoji}|{is_lecture_emoji}|{start_time}{end_time} | {classroom_data}\n"
                                      f"<b>{subject_name}</b> {teacher}\n")
             if str_lessons_data:  # Если день не пустой
                 message_text += date_str + str_lessons_data + '\n'
@@ -137,9 +163,9 @@ async def form_schedule_message(user_id: int,
             return '', teachers_dict
 
         str_lessons_data = ''
-        for lesson in lessons_data:  # Идем по парам на день
-            """[emoji] 08:20⁰⁹·⁵⁵ | ДОТ
-            Базы данных (Козлова И.Р.)"""
+        for day_index, lesson in enumerate(lessons_data, start=1):  # Идем по парам на день
+            """[N]|[emoji]|08:20⁰⁹·⁵⁵ | 258ᴷ¹
+            Go-разработка (Григорьев А.Г.)"""
             subscripts = form_superscript(time_str=lesson['endAt'][:-3],
                                           building=lesson["building"])
             start_time = lesson["startAt"][:-3]
@@ -150,6 +176,7 @@ async def form_schedule_message(user_id: int,
             full_teacher_name = lesson.get("teacherFullName")
             subject_name = lesson["subjectName"]
 
+            lesson_emoji = form_lesson_number(start_time, lesson["building"], day_index)
             is_lecture_emoji = '\U0001f4d6' if lesson['isLecture'] else '\U0001f52c'
             classroom_data = f'{classroom}{building}' if building != 'ДОТ' else 'ДОТ'
             if teacher and bot_username:
@@ -164,7 +191,7 @@ async def form_schedule_message(user_id: int,
             else:
                 teacher = ''
 
-            str_lessons_data += (f"[{is_lecture_emoji}] {start_time}{end_time} | {classroom_data}\n"
+            str_lessons_data += (f"{lesson_emoji}|{is_lecture_emoji}|{start_time}{end_time} | {classroom_data}\n"
                                  f"<b>{subject_name}</b> {teacher}\n")
         if str_lessons_data:  # Если день не пустой
             message_text = date_info + str_lessons_data
