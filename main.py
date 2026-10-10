@@ -28,8 +28,30 @@ from modules.api_client import close_session
 from modules.groups_cache import check_groups_changes_and_notify
 from modules.site_updates import check_site_updates_and_notify
 
+PROJECT_LOGGERS = (
+    "main",
+    "__main__",
+    "config_reader",
+    "handlers",
+    "middlewares",
+    "modules",
+    "database",
+    "keyboards",
+    "states",
+)
+
+
+def setup_logging() -> None:
+    logging.basicConfig(
+        level=logging.ERROR,
+        format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
+    )
+    for logger_name in PROJECT_LOGGERS:
+        logging.getLogger(logger_name).setLevel(logging.DEBUG)
+
 
 async def main():
+    setup_logging()
     await db_init()
 
     bot = Bot(config.bot_token.get_secret_value(), parse_mode="HTML")
@@ -58,11 +80,6 @@ async def main():
     dp.include_router(favorite_groups_router)
     dp.include_router(statstics_router)
     dp.include_router(admin_panel_router)
-
-    logging.basicConfig(
-        level=logging.ERROR,
-        format="%(asctime)s - %(levelname)s - %(name)s - %(message)s"
-    )
 
     # TODO: Разобраться с записью кеша redis на диск, тогда можно jobstores = {'default': RedisJobStore(db=1)}
     #   иначе можно упустить важные jobs (enable_bot_lockdown/check_new_groups_and_disable_lockdown)
