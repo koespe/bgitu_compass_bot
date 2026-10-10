@@ -9,7 +9,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, CallbackQuery, Update, InputMediaPhoto
 from aiogram.utils.markdown import hlink
 
-from config_reader import config, graphics
+from config_reader import graphics
 from database.base import DB
 from handlers.users.favorite_groups import favorite_groups_menu
 from handlers.users.main_menu import handle_schedule
@@ -205,10 +205,6 @@ async def bind_entity_to_user(callback: CallbackQuery, state: FSMContext):
             group_name=None,
             group_id=None,
             teacher_name=entity_name
-        )
-        await callback.bot.send_message(
-            chat_id=config.administration_chat_id,
-            text=f'Новый преподаватель: {entity_name}, @{callback.from_user.username}'
         )
 
     # 4. Чистка интерфейса (удаляем картинку и сообщение с кнопками)
