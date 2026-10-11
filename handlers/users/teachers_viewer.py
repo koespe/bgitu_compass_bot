@@ -15,7 +15,7 @@ from modules.schudule_parser import month_ru_loc, weekday_ru_loc, form_superscri
 from states import TeacherViewer
 
 teachers_router = Router()
-TEACHER_SEARCH_WARNING_TEXT = ("\u203c\ufe0f <b>Данные могут быть неверными вследствие проведения сессии! "
+TEACHER_SEARCH_WARNING_TEXT = ("‼️ <b>Данные могут быть неверными вследствие проведения сессии! "
                                "Уточняйте информацию у преподавателя</b>\n\n")
 
 
@@ -27,9 +27,9 @@ async def handle_teachers_button(callback: CallbackQuery, state: FSMContext):
     msg_text = (
         f'{TEACHER_SEARCH_WARNING_TEXT if await is_teacher_warning_date() else ""}'
         'Узнайте в какие дни и где можно найти преподавателя\n\n'
-        '<i>\u26a0\ufe0f Это <u>не расписание пересдач</u> и отработок '
+        '<i>⚠️ Это <u>не расписание пересдач</u> и отработок '
         '— такую информацию уточняйте лично или на стендах кафедры</i>\n\n'
-        '\U0001f447 Введите <u>фамилию</u> преподавателя'
+        '👇 Введите <u>фамилию</u> преподавателя'
     )
 
     graphics_media = InputMediaPhoto(media=graphics.teachers_search)
@@ -52,16 +52,16 @@ async def handle_surname(message: Message, state: FSMContext):
     reply_markup = KB.back_to_schedule()
 
     if len(surname) < 3:
-        text = '\u26a0\ufe0f Запрос слишком короткий. Введите фамилию преподавателя'
+        text = '⚠️ Запрос слишком короткий. Введите фамилию преподавателя'
     else:
         search_resp = await search_teachers(surname)
         if search_resp is None:
             text = API_UNAVAILABLE_TEXT
         elif not search_resp:
-            text = '\u26a0\ufe0f Поиск не дал результатов — проверьте написание <b><u>фамилии</u></b>'
+            text = '⚠️ Поиск не дал результатов — проверьте написание <b><u>фамилии</u></b>'
         else:
             await state.update_data(teachers_list=search_resp)
-            text = '\U0001f50d Выберите преподавателя'
+            text = '🔍 Выберите преподавателя'
             reply_markup = KB.teachers_search_results(search_resp)
 
     await message.bot.edit_message_text(
@@ -111,7 +111,7 @@ async def handle_teacher_schedule(callback: CallbackQuery, state: FSMContext, te
         formed_end_time = subscripts[0]
         formed_building = subscripts[1]
 
-        is_lecture_emoji = '\U0001f4d6' if work_day['isLecture'] else '\U0001f52c'
+        is_lecture_emoji = '📖' if work_day['isLecture'] else '🔬'
         classroom_data = f'{work_day["classroom"]}{formed_building}' if work_day['building'] != 'ДОТ' else 'ДОТ'
         lesson_emoji = form_lesson_number(work_day['startAt'][:-3], work_day['building'], day_index)
 

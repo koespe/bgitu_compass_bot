@@ -10,7 +10,7 @@ errors_handler_router = Router()
 async def handle_my_custom_exception(event: ErrorEvent):
     try:
         user_id = event.update.callback_query.from_user.id
-        await event.update.callback_query.answer(text='\U0001f50d Используйте новое сообщение')
+        await event.update.callback_query.answer(text='🔍 Используйте новое сообщение')
         await event.update.callback_query.bot.send_message(chat_id=user_id,
                                                            text='Сообщение устарело\n'
                                                                 '——> /start <——\n'

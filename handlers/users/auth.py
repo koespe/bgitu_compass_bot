@@ -49,7 +49,7 @@ async def handle_start_command(update: Union[Message, CallbackQuery, Update], st
 
     welcome_text = (
         'Этот бот поможет узнать <b>расписание групп бакалавриата, СПО и магистратуры</b>\n\n'
-        '\u26a1 Удобное <b>приложение для Android</b> → compass.bgitu.ru'
+        '⚡ Удобное <b>приложение для Android</b> → compass.bgitu.ru'
     )
 
     # Нажатие /start новым пользователем
@@ -80,9 +80,9 @@ async def about_project(callback: CallbackQuery):
     about_text = (
         'Этот бот использует файлы расписания с сайта bgitu.ru — предоставляется расписание для '
         'групп <b><u>БАК, СПО и МАГ</u></b>\n'
-        '\U0001f4f1 Также есть <b>приложение для Android</b> → compass.bgitu.ru\n\n'
-        '\U0001f464 <b>Разработчик: Пудов Кирилл (@koespe)</b>\n'
-        '\U0001f464 <b>Разработчик приложения: Елисей Веревкин (@Injent)</b>\n'
+        '📱 Также есть <b>приложение для Android</b> → compass.bgitu.ru\n\n'
+        '👤 <b>Разработчик: Пудов Кирилл (@koespe)</b>\n'
+        '👤 <b>Разработчик приложения: Елисей Веревкин (@Injent)</b>\n'
     )
     await callback.message.edit_text(text=about_text, reply_markup=KB.start_menu(is_about=True))
 
@@ -94,9 +94,9 @@ async def handle_search_setup(callback: CallbackQuery, state: FSMContext):
     cancel_keyboard = KB.cancel_group_search()
     img_key = 'group_search' if is_group else 'teachers_search'
     text = (
-        '\U0001f447 Введите группу (можно неполностью)\nПример: «ИСТ», «АД СПО» или «ЭКОНм»'
+        '👇 Введите группу (можно неполностью)\nПример: «ИСТ», «АД СПО» или «ЭКОНм»'
         if is_group
-        else '\U0001f447 Введите фамилию (можно неполностью)\nПример: «Казаков»'
+        else '👇 Введите фамилию (можно неполностью)\nПример: «Казаков»'
     )
 
     data = await state.get_data()
@@ -140,23 +140,23 @@ async def handle_search_results(message: Message, state: FSMContext):
     if not search_resp:
         if is_group:
             text = (
-                f'\U0001f914 По запросу "{search_query}" ничего не нашлось.\n\n'
+                f'🤔 По запросу "{search_query}" ничего не нашлось.\n\n'
                 'Бот отображает <b>только группы бакалавриата, магистратуры и СПО</b>\n\n'
                 'Если вы <b>БАК или СПО</b> — проверьте написание группы '
                 '(для СПО необходимо писать "АД СПО" <u>или просто "СПО"</u>).\n\n'
-                '\U0001f447 Введите новый запрос ниже'
+                '👇 Введите новый запрос ниже'
             )
         else:
             text = (
-                f'\U0001f914 По запросу "{search_query}" ничего не нашлось.\n\n'
+                f'🤔 По запросу "{search_query}" ничего не нашлось.\n\n'
                 'Проверьте правильность написания фамилии преподавателя.\n'
                 'Возможно буква «Е» на самом деле «Ё»\n\n'
-                '\U0001f447 Введите новый запрос ниже'
+                '👇 Введите новый запрос ниже'
             )
 
         await message.bot.edit_message_text(chat_id=message.from_user.id, message_id=bot_msg_id, text=text)
     else:  # Успешный поиск
-        success_text = 'Выберите группу \U0001f447 ' if is_group else 'Выберите преподавателя \U0001f447 '
+        success_text = 'Выберите группу 👇 ' if is_group else 'Выберите преподавателя 👇 '
         # Сохраняем список преподавателей в state для последующего использования по индексу
         if not is_group:
             await state.update_data(teachers_list=search_resp)
@@ -183,7 +183,7 @@ async def bind_entity_to_user(callback: CallbackQuery, state: FSMContext):
         teacher_idx = int(callback.data.split('=')[1])
         teachers_list = fsm_data.get('teachers_list', [])
         if teacher_idx >= len(teachers_list):
-            await callback.answer('\u26a0\ufe0f Ошибка: преподаватель не найден', show_alert=True)
+            await callback.answer('⚠️ Ошибка: преподаватель не найден', show_alert=True)
             return
         entity_name = teachers_list[teacher_idx]
 
@@ -231,7 +231,7 @@ async def bind_entity_to_user(callback: CallbackQuery, state: FSMContext):
         )
 
         onboarding_text_2 = hlink(
-            "\u2764\ufe0f Добавьте ярлык на IOS для быстрого доступа",
+            "❤️ Добавьте ярлык на IOS для быстрого доступа",
             "https://teletype.in/@koespe/PlCPlPwKLAI",
         )
 
@@ -259,7 +259,7 @@ async def handle_cancelling_group_search(callback: CallbackQuery, state: FSMCont
 @auth_router.message(CommandStart(deep_link=True, magic=F.args == "support_words"))
 async def handle_support_words(message: Message, state: FSMContext):
     msg_text = (
-        '\U0001f917 Вы можете поддержать разработчиков теплыми словами, им будет очень приятно!\n'
+        '🤗 Вы можете поддержать разработчиков теплыми словами, им будет очень приятно!\n'
         'Напишите одно сообщение'
     )
     await message.answer(msg_text)

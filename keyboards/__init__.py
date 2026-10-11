@@ -9,16 +9,16 @@ class KB:
     @staticmethod
     def start_menu(is_about=False):
         kb = InlineKeyboardBuilder()
-        kb.row(InlineKeyboardButton(text='\U0001f393 Я студент', callback_data='choose_group'))
-        kb.row(InlineKeyboardButton(text='\U0001f464 Я преподаватель', callback_data='choose_teacher'))
+        kb.row(InlineKeyboardButton(text='🎓 Я студент', callback_data='choose_group'))
+        kb.row(InlineKeyboardButton(text='👤 Я преподаватель', callback_data='choose_teacher'))
         if not is_about:
-            kb.row(InlineKeyboardButton(text='\u2139\ufe0f О проекте', callback_data='about'))
+            kb.row(InlineKeyboardButton(text='ℹ️ О проекте', callback_data='about'))
         return kb.as_markup()
 
     @staticmethod
     def cancel_group_search():
         kb = InlineKeyboardBuilder()
-        kb.row(InlineKeyboardButton(text='\u21aa\ufe0f Вернуться назад', callback_data='cancel_group_search'))
+        kb.row(InlineKeyboardButton(text='↪️ Вернуться назад', callback_data='cancel_group_search'))
         return kb.as_markup()
 
     @staticmethod
@@ -38,43 +38,43 @@ class KB:
         kb = InlineKeyboardBuilder()
         if offset != 0:
             kb.row(
-                InlineKeyboardButton(text='\u2b05\ufe0f', callback_data='schedule_page_prev'),
-                InlineKeyboardButton(text='\U0001f504', callback_data='schedule_page_refresh'),
-                InlineKeyboardButton(text='\u27a1\ufe0f', callback_data='schedule_page_next'),
+                InlineKeyboardButton(text='⬅️', callback_data='schedule_page_prev'),
+                InlineKeyboardButton(text='🔄', callback_data='schedule_page_refresh'),
+                InlineKeyboardButton(text='➡️', callback_data='schedule_page_next'),
             )
         else:
             kb.row(
-                InlineKeyboardButton(text='\u2b05\ufe0f', callback_data='schedule_page_prev'),
-                InlineKeyboardButton(text='\u27a1\ufe0f', callback_data='schedule_page_next'),
+                InlineKeyboardButton(text='⬅️', callback_data='schedule_page_prev'),
+                InlineKeyboardButton(text='➡️', callback_data='schedule_page_next'),
             )
         kb.row(InlineKeyboardButton(text=change_view_button_text, callback_data='schedule_change_view'))
         if is_favorite:
             kb.row(
-                InlineKeyboardButton(text='\U0001f3e0 Вернуться к своей группе', callback_data='favorite_group_exit')
+                InlineKeyboardButton(text='🏠 Вернуться к своей группе', callback_data='favorite_group_exit')
             )
         else:
-            kb.row(InlineKeyboardButton(text='\u2b50 Избранные группы', callback_data='favorite_groups'))
-            kb.row(InlineKeyboardButton(text='\U0001f464 Расписание преподавателей', callback_data='teachers'))
+            kb.row(InlineKeyboardButton(text='⭐ Избранные группы', callback_data='favorite_groups'))
+            kb.row(InlineKeyboardButton(text='👤 Расписание преподавателей', callback_data='teachers'))
             kb.row(
-                InlineKeyboardButton(text='\u26d1\ufe0f Сообщить об ошибке', url='https://t.me/koespe'),
+                InlineKeyboardButton(text='⛑️ Сообщить об ошибке', url='https://t.me/koespe'),
                 InlineKeyboardButton(
-                    text='\U0001f4f1 Ярлык для IOS', url='https://teletype.in/@koespe/PlCPlPwKLAI'
+                    text='📱 Ярлык для IOS', url='https://teletype.in/@koespe/PlCPlPwKLAI'
                 ),
             )
-            kb.row(InlineKeyboardButton(text='\u2699\ufe0f Настройки', callback_data='settings'))
+            kb.row(InlineKeyboardButton(text='⚙️ Настройки', callback_data='settings'))
         return kb.as_markup()
 
     @staticmethod
     def back_to_schedule():
         kb = InlineKeyboardBuilder()
-        kb.row(InlineKeyboardButton(text='\u21aa\ufe0f Вернуться назад', callback_data='back_to_schedule'))
+        kb.row(InlineKeyboardButton(text='↪️ Вернуться назад', callback_data='back_to_schedule'))
         return kb.as_markup()
 
     @staticmethod
     async def favorites_main_menu(user_id: int, is_deleting: bool = False):
         user_favorite_groups: list = (await DB.user_data(user_id)).get('favorite_groups') or []
         action_word = 'delete' if is_deleting else 'open'
-        prefix = '\u274c ' if is_deleting else ''  # Наглядно показываем удаление группы
+        prefix = '❌ ' if is_deleting else ''  # Наглядно показываем удаление группы
         kb = InlineKeyboardBuilder()
         groups_names = await get_groups_names()
         for group_id in user_favorite_groups:
@@ -89,9 +89,9 @@ class KB:
             kb.row(InlineKeyboardButton(text='+ Добавить группу', callback_data='favorite_group_search'))
             if user_favorite_groups:
                 kb.row(InlineKeyboardButton(text='– Удалить группу', callback_data='favorite_group_delete_button'))
-            kb.row(InlineKeyboardButton(text='\u21aa\ufe0f Вернуться назад', callback_data='back_to_schedule'))
+            kb.row(InlineKeyboardButton(text='↪️ Вернуться назад', callback_data='back_to_schedule'))
         else:
-            kb.row(InlineKeyboardButton(text='\u21aa\ufe0f Отмена', callback_data='favorite_groups_menu'))
+            kb.row(InlineKeyboardButton(text='↪️ Отмена', callback_data='favorite_groups_menu'))
         return kb.as_markup()
 
     @staticmethod
@@ -101,7 +101,7 @@ class KB:
         back_callback = 'cancel_group_search' if is_auth else 'back_to_schedule'
         for idx, teacher_name in enumerate(teachers):
             kb.row(InlineKeyboardButton(text=teacher_name, callback_data=f"{callback_prefix}={idx}"))
-        kb.row(InlineKeyboardButton(text='\u21aa\ufe0f Вернуться назад', callback_data=back_callback))
+        kb.row(InlineKeyboardButton(text='↪️ Вернуться назад', callback_data=back_callback))
         return kb.adjust(1).as_markup()
 
     @staticmethod
@@ -112,9 +112,9 @@ class KB:
             kb.row(InlineKeyboardButton(text='Включить режим преподавателя', callback_data='choose_teacher'))
         else:
             kb.row(InlineKeyboardButton(text='Выбрать другого преподавателя', callback_data='choose_teacher'))
-        kb.row(InlineKeyboardButton(text='\u26d1\ufe0f Поддержка', url='https://t.me/koespe'),
-               InlineKeyboardButton(text='\U0001f504 Сбросить данные', callback_data='reset_all_data'))
-        kb.row(InlineKeyboardButton(text='\u21aa\ufe0f Вернуться назад', callback_data='back_to_schedule'))
+        kb.row(InlineKeyboardButton(text='⛑️ Поддержка', url='https://t.me/koespe'),
+               InlineKeyboardButton(text='🔄 Сбросить данные', callback_data='reset_all_data'))
+        kb.row(InlineKeyboardButton(text='↪️ Вернуться назад', callback_data='back_to_schedule'))
         return kb.as_markup()
 
     @staticmethod
@@ -141,7 +141,7 @@ class KB:
     @staticmethod
     def restart_to_schedule():
         kb = InlineKeyboardBuilder()
-        kb.row(InlineKeyboardButton(text='\u2705 Обновить расписание', callback_data='restart_to_schedule'))
+        kb.row(InlineKeyboardButton(text='✅ Обновить расписание', callback_data='restart_to_schedule'))
         return kb.as_markup()
 
     @staticmethod

@@ -90,9 +90,9 @@ async def handle_schedule(update: Union[Update, CallbackQuery, Message], state: 
             await state.update_data(teachers_dict={})
 
             answer_msg_text = (
-                "\u26a0\ufe0f Не удалось найти вашу группу. Выберите ее заново."
+                "⚠️ Не удалось найти вашу группу. Выберите ее заново."
                 if "GROUP" in msg_text
-                else "\u26a0\ufe0f Не удалось найти вас в списке преподавателей. Войдите заново."
+                else "⚠️ Не удалось найти вас в списке преподавателей. Войдите заново."
             )
 
             if isinstance(update, CallbackQuery):
