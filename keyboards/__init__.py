@@ -58,7 +58,7 @@ class KB:
             kb.row(
                 InlineKeyboardButton(text='\u26d1\ufe0f Сообщить об ошибке', url='https://t.me/koespe'),
                 InlineKeyboardButton(
-                    text='\U0001f4f1 Ярлык для IOS', url='https://telegra.ph/Dostup-odnoj-knopkoj-IOS-01-30'
+                    text='\U0001f4f1 Ярлык для IOS', url='https://teletype.in/@koespe/PlCPlPwKLAI'
                 ),
             )
             kb.row(InlineKeyboardButton(text='\u2699\ufe0f Настройки', callback_data='settings'))

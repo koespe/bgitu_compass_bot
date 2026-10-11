@@ -232,7 +232,7 @@ async def bind_entity_to_user(callback: CallbackQuery, state: FSMContext):
 
         onboarding_text_2 = hlink(
             "\u2764\ufe0f Добавьте ярлык на IOS для быстрого доступа",
-            "https://telegra.ph/Dostup-odnoj-knopkoj-IOS-01-30",
+            "https://teletype.in/@koespe/PlCPlPwKLAI",
         )
 
         await callback.message.answer(onboarding_text_1)
