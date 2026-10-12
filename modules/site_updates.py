@@ -107,6 +107,9 @@ async def notify_admin(bot: Bot, new_links: list[str]) -> None:
 
 
 async def check_site_updates_and_notify(bot: Bot) -> None:
+    """
+    Уведомления в административный чат для удобного мониторинга нового расписания
+    """
     current_links = await collect_links()
     if not current_links:
         return
