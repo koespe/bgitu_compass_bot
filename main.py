@@ -23,7 +23,7 @@ from handlers.users.teachers_viewer import teachers_router
 from middlewares.db import DbSessionMiddleware
 from middlewares.lockdown import LockdownMiddleware
 from middlewares.throttling import ThrottlingMiddleware
-from modules.annual_reset import check_new_groups_and_disable_lockdown, ensure_annual_lockdown
+from modules.annual_reset import ensure_annual_lockdown
 from modules.api_client import close_session
 from modules.groups_cache import check_groups_changes_and_notify
 from modules.site_updates import check_site_updates_and_notify
@@ -104,15 +104,7 @@ async def main():
         trigger="interval",
         minutes=60,
         next_run_time=datetime.now(),
-        id="annual_lockdown_check",
-        misfire_grace_time=604800)
-    scheduler.add_job(
-        check_new_groups_and_disable_lockdown,
-        trigger="interval",
-        minutes=30,
-        next_run_time=datetime.now(),
-        args=[bot],
-        id="lockdown_check",
+        id="annual_lockdown_check"
     )
     scheduler.start()
 

@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 from contextlib import suppress
+from datetime import date
 from pathlib import Path
 from typing import Optional
 
@@ -13,6 +14,7 @@ from config_reader import config
 from database.base import get_session
 from database.models import Users
 from keyboards import KB
+from middlewares.lockdown import is_lockdown_active, lockdown_cache, read_lockdown_state, write_lockdown_state
 from modules.api_client import get_groups, invalidate_lessons
 
 CACHE_FILE = Path("data") / "groups_cache.json"
@@ -128,19 +130,50 @@ async def send_schedule_update_notification(bot: Bot, changed_groups: list[dict]
                            text=f"\U0001f514 Уведомления о изменениях отправлено для {sent_count} чел.")
 
 
-async def check_groups_changes_and_notify(bot) -> None:
+async def handle_new_groups(bot: Bot, new_groups: list[dict]) -> None:
+    async with get_session() as session:
+        query = select(Users.id).where(
+            (Users.group_id.is_(None)) & (Users.teacher_name.is_(None))
+        )
+        users = (await session.execute(query)).all()
+
+    groups_list = "\n".join(f"• {g.get('name', g['id'])}" for g in new_groups)
+    text = f"🎉 <b>Появились новые группы!</b>\n\n{groups_list}"
+
+    for user in users:
+        with suppress(TelegramBadRequest):
+            await bot.send_message(user.id, text, reply_markup=KB.start_menu())
+
+    await bot.send_message(
+        chat_id=config.administration_chat_id,
+        text=f"🔔 <b>Обнаружены новые группы</b>\nПоявилось групп: {len(new_groups)}\n\n{text}"
+    )
+
+    state = read_lockdown_state()
+    state["active"] = False
+    write_lockdown_state(state)
+    lockdown_cache.clear()
+
+
+async def check_groups_changes_and_notify(bot: Bot) -> None:
     """
-    Функция для APScheduler
+    send_schedule_update_notification пользователям, у кого выбрана группа,
+    а handle_new_groups — тем, у кого группа не выбрана
+
+    in_lockdown_window нужно чтобы корректно обработать момент удаления данных на API
+    (возможно удаление произойдет не 15 июля, в таком случае lockdown будет установлен 100% корректно)
     """
+    today = date.today()
+    in_lockdown_window = date(today.year, 8, 1) <= today <= date(today.year, 10, 1)
+
+    if is_lockdown_active() and not in_lockdown_window:
+        return
+
     current_groups = await get_groups()
     if not current_groups:  # API недоступен или нет групп
         return
 
     cached_data = load_cached_data()
-
-    if cached_data is None:
-        save_cached_data(current_groups)
-        return
 
     changed_groups = get_changed_groups(current_groups, cached_data)
     removed_group_ids = get_removed_group_ids(current_groups, cached_data)
@@ -155,5 +188,15 @@ async def check_groups_changes_and_notify(bot) -> None:
     try:
         if changed_groups:
             await send_schedule_update_notification(bot, changed_groups)
+
+        if in_lockdown_window:
+            if cached_data is None:
+                added_groups = current_groups
+            else:
+                cached_ids = set(cached_data.keys())
+                added_groups = [g for g in current_groups if str(g['id']) not in cached_ids]
+
+            if added_groups:
+                await handle_new_groups(bot, added_groups)
     finally:
         save_cached_data(current_groups)
