@@ -13,10 +13,9 @@ from config_reader import config
 from database.base import get_session
 from database.models import Users, engine
 from keyboards import KB
-from middlewares.lockdown import lockdown_cache
+from middlewares.lockdown import lockdown_cache, read_lockdown_state, write_lockdown_state
 from modules.api_client import get_groups
 
-LOCKDOWN_FILE = Path("data") / "lockdown.json"
 GROUPS_SNAPSHOT_FILE = Path("data") / "groups_snapshot.json"
 GROUPS_CACHE_FILE = Path("data") / "groups_cache.json"
 
@@ -33,14 +32,32 @@ async def enable_bot_lockdown():
             )
         )
 
-    with open(LOCKDOWN_FILE, "w", encoding="utf-8") as f:
-        json.dump({"active": True}, f, ensure_ascii=False)
+    state = read_lockdown_state()
+    state["active"] = True
+    state["applied_date"] = date.today().isoformat()
+    write_lockdown_state(state)
 
     lockdown_cache.clear()
 
     for cache_file in (GROUPS_CACHE_FILE, GROUPS_SNAPSHOT_FILE):
         if cache_file.exists():
             os.remove(cache_file)
+
+
+async def ensure_annual_lockdown() -> None:
+    today = date.today()
+    if not (date(today.year, 7, 15) <= today < date(today.year, 8, 15)):
+        return
+
+    applied_date = read_lockdown_state().get("applied_date")
+    if applied_date:
+        try:
+            if date.fromisoformat(applied_date).year == today.year:
+                return
+        except ValueError:
+            pass
+
+    await enable_bot_lockdown()
 
 
 async def check_new_groups_and_disable_lockdown(bot: Bot) -> None:
@@ -63,8 +80,9 @@ async def check_new_groups_and_disable_lockdown(bot: Bot) -> None:
             json.dump(groups, f, ensure_ascii=False, indent=2)
         old_groups = []
 
-        with open(LOCKDOWN_FILE, "w", encoding="utf-8") as f:
-            json.dump({"active": False}, f, ensure_ascii=False)
+        state = read_lockdown_state()
+        state["active"] = False
+        write_lockdown_state(state)
         lockdown_cache.clear()
     else:
         with open(GROUPS_SNAPSHOT_FILE, "r", encoding="utf-8") as f:

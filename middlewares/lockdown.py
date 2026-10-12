@@ -9,27 +9,36 @@ from cachetools import cached, TTLCache
 from config_reader import graphics, config
 from database.base import DB
 
-LOCKDOWN_FILE = Path("data") / "lockdown.json"
-
-lockdown_cache = TTLCache(maxsize=1, ttl=300)
-
-
-@cached(lockdown_cache)
-def is_lockdown_active() -> bool:
-    if not LOCKDOWN_FILE.exists():
-        return False
-
-    with open(LOCKDOWN_FILE, "r", encoding="utf-8") as f:
-        data = json.load(f)
-        return data.get("active", False)
-
-
 LOCKDOWN_MESSAGE = (
     "\U0001F6A7 Расписание на новый учебный год ещё не опубликовано.\n"
     "<b>Бот пришлет уведомление при появлении групп.</b>\n\n"
     "\U0001f49a У нас есть <b>приложение для Android</b>:\n"
     "\u2192 compass.bgitu.ru"
 )
+LOCKDOWN_FILE = Path("data") / "lockdown.json"
+
+lockdown_cache = TTLCache(maxsize=1, ttl=300)
+
+
+def read_lockdown_state() -> dict:
+    if not LOCKDOWN_FILE.exists():
+        return {}
+    try:
+        with open(LOCKDOWN_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+
+def write_lockdown_state(state: dict) -> None:
+    LOCKDOWN_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(LOCKDOWN_FILE, "w", encoding="utf-8") as f:
+        json.dump(state, f, ensure_ascii=False)
+
+
+@cached(lockdown_cache)
+def is_lockdown_active() -> bool:
+    return read_lockdown_state().get("active", False)
 
 
 class LockdownMiddleware(BaseMiddleware):

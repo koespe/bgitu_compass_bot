@@ -23,7 +23,7 @@ from handlers.users.teachers_viewer import teachers_router
 from middlewares.db import DbSessionMiddleware
 from middlewares.lockdown import LockdownMiddleware
 from middlewares.throttling import ThrottlingMiddleware
-from modules.annual_reset import enable_bot_lockdown, check_new_groups_and_disable_lockdown
+from modules.annual_reset import check_new_groups_and_disable_lockdown, ensure_annual_lockdown
 from modules.api_client import close_session
 from modules.groups_cache import check_groups_changes_and_notify
 from modules.site_updates import check_site_updates_and_notify
@@ -81,8 +81,6 @@ async def main():
     dp.include_router(statstics_router)
     dp.include_router(admin_panel_router)
 
-    # TODO: Разобраться с записью кеша redis на диск, тогда можно jobstores = {'default': RedisJobStore(db=1)}
-    #   иначе можно упустить важные jobs (enable_bot_lockdown/check_new_groups_and_disable_lockdown)
     jobstores = {'default': MemoryJobStore()}
     scheduler = AsyncIOScheduler(jobstores=jobstores)
     scheduler.add_job(
@@ -101,16 +99,13 @@ async def main():
         args=[bot],
         id="site_updates_check"
     )
-    # TODO: сервер бгиту часто падает, так что лучше с интервалом проверять
     scheduler.add_job(
-        enable_bot_lockdown,
-        trigger="cron",
-        month=7,
-        day=15,
-        hour=0,
-        minute=0,
-        id="annual_lockdown",
-        misfire_grace_time=604800)  # 7 дней
+        ensure_annual_lockdown,
+        trigger="interval",
+        minutes=60,
+        next_run_time=datetime.now(),
+        id="annual_lockdown_check",
+        misfire_grace_time=604800)
     scheduler.add_job(
         check_new_groups_and_disable_lockdown,
         trigger="interval",
