@@ -1,4 +1,3 @@
-import os
 from datetime import date
 from pathlib import Path
 
@@ -6,6 +5,7 @@ from sqlalchemy import update
 
 from database.models import Users, engine
 from middlewares.lockdown import lockdown_cache, read_lockdown_state, write_lockdown_state
+from modules.api_client import CACHE_DIR
 
 GROUPS_CACHE_FILE = Path("data") / "groups_cache.json"
 
@@ -29,8 +29,11 @@ async def enable_bot_lockdown():
 
     lockdown_cache.clear()
 
-    if GROUPS_CACHE_FILE.exists():
-        os.remove(GROUPS_CACHE_FILE)
+    for path in CACHE_DIR.rglob("*"):
+        if path.is_file():
+            path.unlink()
+
+    GROUPS_CACHE_FILE.unlink(missing_ok=True)
 
 
 async def ensure_annual_lockdown() -> None:

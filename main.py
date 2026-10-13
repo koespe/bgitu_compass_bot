@@ -102,7 +102,7 @@ async def main():
     scheduler.add_job(
         ensure_annual_lockdown,
         trigger="interval",
-        minutes=60,
+        days=1,
         next_run_time=datetime.now(),
         id="annual_lockdown_check"
     )
